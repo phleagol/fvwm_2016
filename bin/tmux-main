@@ -1,0 +1,18 @@
+#!/bin/sh
+
+ssn=main_tmux
+
+tmux kill-session -t $ssn 1>/dev/null 2>&1
+tmux new-session -d -s $ssn 1>/dev/null 2>&1
+tmux new-window -t $ssn:1 -k -n root
+tmux new-window -t $ssn:2 -n alpha
+tmux new-window -t $ssn:3 -n bravo
+tmux new-window -t $ssn:4 -n charlie
+tmux new-window -t $ssn:5 -n delta 
+tmux new-window -t $ssn:6 -n gamma 
+tmux split-window -v -p 40 -t $ssn:6 
+tmux select-pane -U -t $ssn:6 
+tmux select-window -t $ssn:1 
+tmux attach -t $ssn
+
+

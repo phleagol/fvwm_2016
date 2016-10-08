@@ -1,0 +1,20 @@
+#!/bin/bash
+
+tmux kill-session -t piratebay  2>&1 1>/dev/null
+tmux new-session -d -s piratebay
+sleep 1
+tmux new-window -t piratebay:1 -n mvgroup -k "sleep 2 && w3m -cookie https://thepiratebay.org/user/MVGroup/"
+tmux new-window -t piratebay:2 -n CenaCme -k "sleep 2 && w3m -cookie https://thepiratebay.org/user/CenaCme/"
+tmux new-window -t piratebay:3 -n snowhiter -k "sleep 2 && w3m -cookie https://thepiratebay.org/user/Snowhiter/"
+tmux new-window -t piratebay:4 -n tvteam -k "sleep 2 && w3m -cookie https://thepiratebay.org/user/TvTeam/"
+tmux new-window -t piratebay:5 -n connor17 -k "sleep 2 && w3m -cookie https://thepiratebay.org/user/connor17/"
+#tmux new-window -t piratebay:1 -n stateofmind -k "sleep 2 && w3m -cookie https://thepiratebay.org/user/stateofmind80/"
+#tmux new-window -t piratebay:7 -n srigga -k "sleep 2 && w3m -cookie -N +40 https://kat.cr/user/SRIGGA/uploads/"
+#tmux new-window -t piratebay:8 -n bubonic -k "sleep 2 && w3m -cookie -N +40 https://kat.cr/user/bubonic420/uploads/"
+#tmux new-window -t piratebay:9 -n bullrout -k "sleep 2 && w3m -cookie -N +40 https://kat.cr/user/Bullrout/uploads/"
+tmux new-window -t piratebay:6 -n marks -k "sleep 2 && w3m -cookie -B"
+tmux select-window -t piratebay:1
+tmux attach -t piratebay
+
+# tmux new-window -t piratebay:5 -n redbaron -k "sleep 2 && w3m -cookie https://thepiratebay.org/user/RedBaron58/"
+

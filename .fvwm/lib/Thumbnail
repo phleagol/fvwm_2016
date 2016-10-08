@@ -1,0 +1,241 @@
+#!/usr/bin/perl
+
+# vim: syntax=perl:
+
+##  Useful webpages :-
+##  http://www.imagemagick.org/script/command-line-processing.php
+##  http://www.imagemagick.org/script/perl-magick.php
+
+use strict ;
+use warnings ;
+use v5.18 ;
+
+use lib `fvwm-perllib dir`;
+use FVWM::Module;
+use Data::Dump qw( dump ) ;
+use Image::Magick ;             ##  libimage-magick-perl
+use Path::Tiny ;
+use File::stat ;
+use Try::Tiny ;
+use IPC::Run qw( run timeout ) ;
+
+##  Target geometry for thumbnail icons.
+my $width = 205 ;
+my $height = 120 ;
+##  Number of times to attempt window capture
+my $tries = 3 ;
+##  Expiration time in seconds for saved thumbnails.
+my $expires = 60 ;
+##  Destination folder for thumbnail icons.
+my $folder = "$ENV{FVWM_THUMBS}" ;
+
+##  Enable/disable logging
+my $logfile = path("/tmp/Thumbnail.log") ;
+unlink $logfile ;
+my $logger = "yes" ;
+#my $logger = "" ;
+
+my $module = new FVWM::Module(
+    Name => 'Thumbnail',
+    Debug => 0,
+);
+
+my $modname = $module->name ;
+
+##  Fvwm module reads config before listening for SendToModule cmnds.
+##
+$module->add_handler(M_CONFIG_INFO, \&read_config) ;
+$module->add_handler(M_END_CONFIG_INFO, sub {
+        #$module->show_message("[$modname] read config finished]") ;
+    $module->addHandler(M_STRING, \&process_cmd);
+    });
+
+#$module->show_message("Starting");
+$module->send("Send_ConfigInfo");
+$module->event_loop ;
+
+####  SUBROUTINES
+
+##  Two functions to read and process entries from the module config
+##  during startup.
+##
+sub read_config {
+    my ($module, $event) = @_ ;
+    return unless $event->_text =~ /^\*$modname(.*)$/ ;
+    process_config($1);
+}
+
+sub process_config {
+    my ($s) = @_ ;
+    my ($option, $args) = $s =~ /\s*(\w+)\s*(.*)/;
+
+    my %opts = (
+        Width => sub { $width = $args },
+        Height => sub { $height = $args },
+        Tries => sub { $tries = $args },
+        Expire => sub { $expires = $args },
+    ) ;
+
+    if (defined $opts{$option}) {
+        $opts{$option}() ;
+    } else {
+        $module->showMessage("Unknown option \"$option\"");
+    }
+}
+
+##  To process and run commands received via SendToModule cmnds.
+##
+sub process_cmd {
+
+    my ($module, $event) = @_ ;
+    my ($s) = $event->_text ;
+    my ($command, $arg) = $s =~ /\s*(\w+)\s*(.*)/ ;
+
+    my %cmd = (
+        capture  => sub { thumbnail($arg) },
+        iconify  => sub { iconify($arg) if thumbnail($arg) },
+    ) ;
+
+    if (defined $cmd{$command}) {
+
+        logger("===========================") ;
+        logger("$modname: process_cmd() : $command $arg") ;
+        $cmd{$command}() ;
+        #$module->showMessage("debug: $command");
+        #logger("$modname: process_cmd() : $command $arg") ;
+    } else {
+        logger("$modname: process_cmd() : unknown : $command $arg") ;
+        #$module->showMessage("unknown command \"$command $arg\"");
+    }
+}
+
+##  To capture, thumbnail and iconify the current window.
+##
+sub iconify  {
+
+    ##  Window id of target window, converted to decimal.
+    my $widhex = shift ;
+    my $wid = hex($widhex) ; 
+    ##  Destination filename for the thumbnail. 
+    my $pngfile = "$folder/$widhex.png" ;
+
+    ##  Tell fvwm to iconify the window.
+    $module->send("WindowStyle Icon $pngfile", $wid) ;
+    $module->send("Iconify True", $wid) ;
+}
+
+##  To thumbnail the current window, if existing icon has not expired.
+##
+sub thumbnail  {
+
+    ##  Window id of target window, converted to decimal.
+    my $widhex = shift ;
+    my $wid = hex($widhex) ; 
+    ##  Destination filename for the thumbnail. 
+    my $pngfile = "$folder/$widhex.png" ;
+
+    if ( !-e $pngfile or expired($pngfile)) {
+
+        logger("$modname: thumbnail() :  new thumb required") ;
+
+        ##  capture image of current window
+        my $thumb = capture($widhex) ;
+        logger("$modname: capture() failed ") if not $thumb ;
+        return 0 if not $thumb ;
+        logger("$modname: capture() succeeded ") ;
+
+        ##  Reduce to thumbnail size.
+        return 0 if $thumb->Thumbnail(geometry => "${width}x$height^") ;
+        logger("$modname: im->thumbnail() succeeded ") ;
+
+        ##  Crop to the correct size
+        return 0 if $thumb->Crop(geometry => "${width}x$height+0+0") ;
+        logger("$modname: im->crop() succeeded ") ;
+
+        ##  Save the finished thumbnail.
+        open(IMAGE, ">$pngfile") ;
+        return 0 if $thumb->Write(
+            file => \*IMAGE, 
+            filename => $pngfile, 
+            quality => 100,
+            ) ;
+        logger("$modname: im->write succeeded") ;
+    } else {
+        logger("$modname: current thumb valid") ;
+    }
+    return 1 ;
+}
+
+##  To capture an image of the current window.
+sub capture  {
+
+    ##  Window id of target window, converted to decimal.
+    my $widhex = shift ;
+    my $wid = hex($widhex) ; 
+    ##  Destination filename for the thumbnail. 
+    my $pngfile = "$folder/$widhex.png" ;
+    my $xwdfile = "$folder/$widhex.xwd" ;
+
+    ##  IMagick always returns undef unless in error.
+    my $thumb = Image::Magick->New() ;
+    my $err ;
+
+    foreach (0 .. $tries) {
+
+        $err = 1  ;
+        logger("$modname: begin capture() ") ;
+
+        my $t = timeout(2) ;
+        my $out = my $in = my $stderr = "" ;
+        unlink $xwdfile ;
+        my @cmd = ("xwd", "-silent", "-nobdrs", "-id", 
+            $wid, "-out", $xwdfile ) ;
+
+        my $excp = try {
+            run \@cmd, \$in, \$out, \$stderr, $t ;
+        } catch { "" } ;
+
+        ##  If xwd cmnd produces error, then repeat again.
+        if ($stderr or not -r $xwdfile)  {
+            logger("$modname: capture() : xwd failed") ;
+            next ;
+        }
+
+        ##  If xwd file cannot be opened, then repeat again.
+        if (not open(IMAGE, $xwdfile)) {
+            logger("$modname: open() xwdfile failed") ;
+            next ;
+        }
+        unlink $xwdfile ;
+
+        ##  If PerlMagic successfully read the png, then continue.
+        $err = $thumb->Read(file=>\*IMAGE);
+        close(IMAGE);
+        logger("$modname: im->Read() fails for xwdfile") if $err ;
+        last if not $err ;
+    }
+
+    ##  Return early if the screenshot operation failed.
+    if ($err)  {
+        logger("$modname: capture() failed after $tries tries") ;
+        return 0 ;
+    } else {
+        return $thumb 
+    }
+}
+
+##  Return 1 if $file was modified more that $expired seconds ago.
+##
+sub expired {
+    my $file = shift ;
+    my $diff = time() - stat($file)->mtime ;
+    if ($diff > $expires) { return 1 } else { return 0 } ;
+}
+
+sub logger {
+    return 0 unless $logger ;
+    my $msg = shift ;
+    $msg .= "\n" ;
+    $logfile->append_utf8($msg) ; 
+}
+

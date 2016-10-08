@@ -1,0 +1,474 @@
+#!/usr/bin/perl
+
+##  http://www.perl.com/doc/FMTEYEWTK/switch_statements    VERYGOOD
+##  http://perldoc.perl.org/5.8.8/Switch.html
+##  the "given/when" builtins are much preferred.
+##
+##  https://transfixedbutnotdead.com/2010/08/30/givenwhen-the-perl-switch-statement/
+##  man perlsyn  "Switch Statements"
+
+##  Crypt::CBC - 
+##  Digest::Perl::MD5s - libdigest-perl-md5-perl
+
+##  A clipboard manager implemented in fvwmperl. Monitors the clipboard
+##  selection, not the primary. Triggers fvwm submenus for different
+##  datatypes. Entries are stored as plaintext - not secure !!!
+##  
+##  ualarm() is used to periodically poll the clipboard with cb_sync().
+##  At other times, fvwm events are listened for and acted upon.
+##
+##  libpath-tiny-perl libtext-unidecode-perl libdata-dump-perl 
+
+use utf8 ;
+use strict ;
+use warnings ;
+use v5.18 ;
+
+use lib `fvwm-perllib dir`;
+use FVWM::Module;
+use Path::Tiny ;
+use Data::Dump qw( dump ) ;
+use Time::HiRes qw( ualarm ) ;
+use Text::Unidecode ;
+use IPC::Run qw( run timeout ) ;
+use Try::Tiny ;
+
+##  Array of hashes to store the xsel clip records
+my @records = () ;
+##  maximum number of records in @records - default.
+my $max_records = 20 ;
+##  maximum width for any record label - default.
+my $max_chars = 50 ;
+##  Title name for menu - default
+my $menu_title = "ClipMenu" ;
+##  Name for the clipmenu
+my $menu_name = "ClipMenu" ;
+##  Delay in usecs between xsel polls - default.
+my $pollinterval = 1000000 ;
+##  Timeout period for all xsel commands in seconds.
+my $xseltimeout = 2 ;
+##  md5sum of the last xsel clip added to @record
+my $md5last = "" ;
+
+##  Setup folder to store entries in.
+my $dir = path("$ENV{FVWM_CLIPMENU}") ;
+system("rm $dir/* 2>/dev/null") ;
+system("mkdir -p $dir 2>/dev/null") ;
+
+##  Enable/disable logging
+#my $logfile = path("$ENV{FVWM_USERDIR}/log/fvwmclip.log") ;
+my $logfile = path("/tmp/clipmenu.log") ;
+unlink $logfile ;
+#my $logger = "yes" ;
+my $logger = "" ;
+
+local $SIG{__WARN__} = sub {
+    my $message = shift;
+    logger("warning : $message");
+};
+
+##  Icons from the fvwm ImagePath for the clipmenu. 
+my %icons  = ( 
+   youtube       => "cb_youtube-type.png", 
+   torrent       => "cb_torrent-type.png", 
+   magnet        => "cb_magnet-type.png", 
+   folder        => "cb_folder-type.png",
+   url           => "cb_url-type.png", 
+   html          => "cb_html-type.png", 
+   video         => "cb_video-type.png", 
+   audio         => "cb_audio-type.png", 
+   image         => "cb_image-type.png",
+   pdf           => "cb_pdf-type.png",
+   none          => "cb_null.png",
+   clear_history => "cb_clear-history.png", 
+   ) ;
+
+##  Fvwm cmnds to be triggered by specific datatypes.
+
+my %submenus = () ;
+
+#my %submenus = ( 
+#    youtube => "UrlMenu",
+#    url     => "UrlMenu", 
+#    html    => "UrlMenu", 
+#    video   => "VideoMenu",
+#    magnet  => "AddTorrent",
+#    torrent => "AddTorrent",
+#    ) ;
+
+my $module = new FVWM::Module(
+    Name => 'ClipMenu',
+    Mask => M_CONFIG_INFO | M_END_CONFIG_INFO | M_STRING,
+    Debug => 0,
+    );
+
+my $modname = $module->name ;
+
+##  After the config phase, the eventloop listens for SendToModule cmnds.
+$module->addHandler(M_CONFIG_INFO, \&read_config);
+$module->addHandler(M_END_CONFIG_INFO, sub {
+    $module->show_message("[$modname] read config finished]") ;
+    $module->addHandler(M_STRING, \&process_cmd);
+    clear_history() ;
+    sleep 1 ;
+    cb_sync() ;
+    }) ;
+    
+##  Using ualarm to trigger a clipboard sync every $pollinterval usecs.
+$SIG{ALRM} = \&cb_sync ;
+
+##  Using an infinite event_loop to monitor FVWM events.
+$module->show_message("starting ".$module->name);
+$module->send("Send_ConfigInfo");
+$module->event_loop ;
+
+####  SUBROUTINES
+
+##  Next two subroutines read and process module config during startup.
+##
+sub read_config {
+    my ($module, $event) = @_ ;
+    return unless $event->_text =~ /^\*$modname(.*)$/;
+    process_config($1);
+}
+
+sub process_config {
+    my ($s) = @_ ;
+    my ($option, $args)= $s =~/\s*(\w+)\s*(.*)/;
+
+    my %opts = (
+        Title => sub { $menu_title = $args },
+        Height => sub { $max_records = $args },
+        Width => sub { $max_chars = $args },
+        Period => sub { $pollinterval = $args },
+        Youtube => sub { $submenus{youtube} = $args },
+        Torrent => sub { $submenus{torrent} = $args },
+        Magnet => sub { $submenus{magnet} = $args }, 
+        Url => sub { $submenus{url} = $args },    
+        Html => sub { $submenus{html} = $args },   
+        Video => sub { $submenus{video} = $args },  
+        Audio => sub { $submenus{audio} = $args },  
+        Image => sub { $submenus{image} = $args },  
+        Pdf => sub { $submenus{pdf} = $args },    
+    ) ;
+
+    if (defined $opts{$option}) {
+        $opts{$option}() ;
+    } else {
+        $module->showMessage("Unknown option \"$option\"");
+    }
+}
+
+##  Read and act upon SendToModule cmnds sent to this module.
+sub process_cmd {
+
+    my ($module, $event) = @_ ;
+    my ($s) = $event->_text ;
+    my ($command, $arg) = $s =~ /\s*(\w+)\s*(.*)/ ;
+
+    my %cmd = (
+        dump  => sub { cb_dump() },
+        clear => sub { clear_history() },
+        menu  => sub { cb_menu() },
+        copy  => sub { xselcopy($arg) },
+    ) ;
+
+    if (defined $cmd{$command}) {
+        $cmd{$command}() ;
+        $module->showMessage("debug: $command");
+    } else {
+        $module->showMessage("unknown command \"$command\"");
+    }
+}
+
+##  Xsel periodically polls the system clipboard via ualarm. If new, then  
+##  a record is stored of extra info about the new entry. If the entry's
+##  datatype is defined in %submenus, then that cmnd is sent to fvwm. 
+##
+sub cb_sync {
+
+    my $md5 = get_xsel_md5() ;
+
+    if ($md5 && $md5 ne $md5last)  {
+
+        ##  Make a hash of all md5s to indexes in @records
+        my %md5index = () ;
+        for (my $idx = $#records ; $idx >= 0 ; $idx--)  {
+            $md5index{$records[$idx]->{md5}} = $idx ;
+        }
+            
+        ##  If this xsel record already exists, ...
+        if (defined $md5index{$md5})  {
+            
+            ##  then move the old record to the top of @records
+            my $idx = $md5index{$md5} ;
+            my $oldrecord = $records[$idx] ;
+            splice @records, $idx, 1 ;
+            unshift @records, $oldrecord ;  
+            print STDERR "^" ;
+
+        } else {
+
+            logger('======new clipboard selection======') ;
+            store_current_xsel($logfile) ;
+            logger("\n") ;
+
+            ##  else, make a new xsel record.
+            unlink "$dir/$md5" ;
+            store_current_xsel("$dir/$md5") ;
+            my $record = new_record($md5) ;
+            unshift(@records, $record) if $record ;  
+            print STDERR "+" ;
+        }
+
+        my $menucmd = $records[0]->{menucmd} ;
+        $module->send($menucmd) if $menucmd ; 
+
+        ##  If the num of stored @records now exceeds 
+        ##  $max_records, then delete the oldest record.
+        if (exists $records[$max_records])  {
+            foreach (keys %{ $records[$max_records] } ) { 
+                delete $records[$max_records]->{$_} 
+            }
+            splice @records, $max_records, 1 ;
+        }
+        $md5last = $md5 ;
+        cb_menu() ;
+    }
+
+    ualarm($pollinterval) ;
+    return 1 ;
+}
+
+##  This sub inspects the xsel-file, and determine its type. Then sub
+##  new_record_typed() builds a hashref with the extra info needed to make
+##  its clipmenu entry - label, icon, menucmd etc.
+##
+sub new_record  {
+
+    my $md5 = shift ;
+    my $file = $dir->child($md5) ;
+    my $label = get_label($file) ;
+
+    ##  multiple lines
+    if ($file->lines > 1)  {
+        $label = substr $label, 0, $max_chars ; 
+        return new_record_typed("other", $md5, $file, $label) ;
+
+    ##  magnet link (single line)
+    } elsif ($label =~ m{^(magnet[:][?].+)$} ) {
+        $label = substr $1, 0, $max_chars ;
+        return new_record_typed("magnet", $md5, $file, $label) ;
+
+    ##  An url (single line)
+    } elsif ($label =~ m{^http[s]?://(\w.*)$} )  {
+
+        ##  youtube url 
+        if ($label =~ m{://(www[.])?(youtu.*)$}) {
+            $label = substr $2, 0, $max_chars ;
+            return new_record_typed("youtube", $md5, $file, $label) ;
+
+        ##  torrent url
+        } elsif ($label =~ m{://(www[.])?(.+[.]torrent)([?].+)?$} ) {
+            $label = substr $2, 0, $max_chars ;
+            return new_record_typed("torrent", $md5, $file, $label) ;
+
+#        ##  image url
+#        } elsif ($label =~ m{://(www.)?(.+[.](jpg|gif|png)).*$} ) {
+#            $label = substr $2, 0, $max_chars ;
+#            return new_record_typed("image", $md5, $file, $label) ;
+
+        ##  some other kind of url
+        } else {
+            $label = substr $1, 0, $max_chars ;
+            return new_record_typed("url", $md5, $file, $label) ;
+        }
+
+    ##  A single line, but not a filepath
+    } elsif ($label !~ m{^/} or not -e $label) {
+        $label = substr $label, 0, $max_chars ; 
+        return new_record_typed("other", $md5, $file, $label) ;
+    } 
+
+    ##  Either a file or folder path.
+    my $type = -d $label ? "folder" : "file" ;
+
+    my %filetypes = (
+        "video" => '[.](flv|mkv|mp4|mpe?g|avi|webm|wmv|mov)$',
+        "audio" => '[.](mp3|m4a|aac|ac3|flac|wav)$',
+        "image" => '[.](jpg|jpeg|png|gif)$',
+        "pdf"   => '[.]pdf$',
+        "html"  => '[.](html|htm|maff)$',
+    ) ;
+
+    if ($type eq "file")  {
+        foreach my $x (keys %filetypes) {
+            my $pat = $filetypes{$x} ;
+            if ($label =~ /$pat/ )  { $type = $x }
+        }
+    }
+
+    ##  Shorten (abbreviate) the file path.
+    $label = abbrev_path($label) ;
+    return new_record_typed($type,, $md5, $file, $label) ;
+}
+
+sub new_record_typed {
+    my $type = shift ;
+    my $md5 = shift ;
+    my $file = shift ;
+    my $label = shift ;
+
+#    say STDERR "type : $type" ;
+    $label = format_label($label) ;
+    my $icon = exists $icons{$type} ? $icons{$type} : $icons{none} ;
+    my $menucmd = exists $submenus{$type} ? $submenus{$type} : "" ;
+    return { md5 => $md5,  label => $label, 
+        type => $type, icon => $icon, menucmd => $menucmd } ;
+}
+
+##  Inspect the xsel-file line by line. The first line found 
+##  with word and/or digit chars is returned as the label.
+##
+sub get_label  {
+
+    my $file = shift ;
+    my $label = "" ;
+    foreach my $line ($file->lines_utf8) {
+       if ($line =~ /\w|\d/) {
+           $label = $line ;
+           last ;
+       }
+    }
+    $label = "--" if not $label ;
+    chomp $label ;
+    unidecode $label ;
+    return $label ;
+}
+
+##  Fvwm menus trip up on special chars. This formats a label such 
+##  that menu text prints (almost) correctly. 
+##
+sub format_label  {
+    my $label = shift ;
+    for ($label)  {
+        tr/$/ / ;  
+        s/([\[\]\#\'\*\?\^`!@;])/\\$1/g ;
+        s/&/&&/g ; 
+        s/\s+/ /g ;
+        s/^\s*$/-/ ;
+    }
+    return $label ;
+}
+
+##  If a label is also a filepath, then shorten it via abbreviation.
+sub abbrev_path  {
+    my $name = shift ;
+    while ( length($name) > $max_chars and
+            $name =~ s!/([^/])[^/]+/!/$1/! ) { }
+    my $num = length($name) - $max_chars ;
+    $name = "..." . substr($name, $num+3) if $num > 0 ;
+    return $name ;
+}
+
+##  After each new xsel, this sub recreates the clipmenu for fvwm.
+sub cb_menu {
+
+    ##  Menu title
+    sendcmd("DestroyMenu $menu_name") ;
+    sendcmd("AddToMenu $menu_name \"$menu_title\" Title") ;
+
+    ##  A menu entry for each item in @records.
+    for (my $idx = 0 ; $idx <= $#records ; $idx++)  { 
+        my $rec = $records[$idx] ;
+        my $icon = $rec->{icon} ? "%$rec->{icon}%" : "" ;
+        my $cmnd = "+ \'${icon}$rec->{label}\' " ; 
+        $cmnd .= "SendToModule $modname copy $idx" ;
+        sendcmd($cmnd) ;  
+    }
+
+    ##  Divider line. 
+    sendcmd('+ "" Nop') ;
+
+    ##  Clear history.
+    my $icon = exists $icons{clear_history} ? $icons{clear_history} : "" ;
+    my $cmnd = '+ "%' . $icons{clear_history} . "%Clear history" . '" ' ;
+    $cmnd   .= "SendToModule $modname clear " ;
+    sendcmd($cmnd) ;  
+}
+
+##  Calculate md5sum for the current system clipboard. Xsel cmnds may 
+##  fail, so timeout + exception handler are used for fault-tolerance.
+##
+sub get_xsel_md5  {
+    my @cmd1 = ("xsel", "-ob") ;
+    my @cmd2 = qw( md5sum ) ;
+    my $out = my $err = "" ;
+    my $t = timeout($xseltimeout) ;
+    my $excp = try {
+        run \@cmd1, '|', \@cmd2,  \$out, \$err, $t ;
+    } catch { "" } ;
+
+    if ($err or not $excp) {
+        print STDERR "~" ;
+        return 0 ;
+    }
+    chomp $out ;
+    $out =~ s/\s.+$// ;
+    return $out ;
+}
+
+##  When the current clipboard has changed, this stores the new xsel
+##  content to a file.
+##
+sub store_current_xsel  {
+    my $filex = shift ;
+    my @cmd = ("xsel", "-ob") ;
+    my $t = timeout($xseltimeout) ;
+    my $excp = try {
+        run \@cmd, ">>", $filex, $t ;
+    } catch { "" } ;
+}
+
+##  This sub is triggered via SendToModule. The requested entry is found,
+##  and pushed to the system clipboard.
+##
+sub xselcopy  {
+    my $idx = shift ;
+    my $md5 = $records[$idx]->{md5} ;
+    my $filex = "$dir/$md5" ;
+    my $t = timeout($xseltimeout) ;
+
+    my @cmd = ("pkill", "xsel") ;
+    my $excp = try {
+        run \@cmd, $t ;
+    } catch { "" } ;
+
+    @cmd = ("xsel", "-ib") ;
+    $excp = try {
+        run \@cmd, "<", $filex, $t ;
+    } catch { "" } ;
+}
+
+sub clear_history {
+    @records = () ; 
+    system("rm $dir/* 2>/dev/null") ;
+    system("mkdir $dir 2>/dev/null") ;
+    system("echo -- |timeout $xseltimeout xsel -ib") ;
+}
+
+sub cb_dump { dump \@records }
+
+sub sendcmd {
+    foreach (@_) {
+        $module->send($_) ;
+    } 
+}
+
+sub logger {
+    return 0 unless $logger ;
+    my $msg = shift ;
+    $msg .= "\n" ;
+    $logfile->append_utf8($msg) ; 
+}
+

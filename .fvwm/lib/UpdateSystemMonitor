@@ -1,0 +1,253 @@
+#!/usr/bin/perl
+
+use strict ;
+use warnings ;
+use v5.20 ;
+
+use local::lib ;
+use lib `fvwm-perllib dir` ;
+
+use FVWM::Module ;
+use POSIX ();
+use Sys::Statistics::Linux ;    
+use Graphics::GnuplotIF ;
+use Image::Magick ;             
+use Data::Dumper ;
+#use Data::Dump qw( dump ) ;
+
+##  libsys-statistics-linux-perl libgraphics-gnuplotif-perl 
+
+##  Extra delay at end of each loop.
+my $loop_delay = 2 ;
+##  Step delay between consecutive image update cmnds.
+my $step_delay = int($loop_delay*1000/6) ;
+##  Max data points for the plots.
+my $plot_max = 65 ;
+##  Background color for the plots
+my $back = '#171717' ;
+##  Width/height for the plots
+my $width = 139 ;
+my $height = 50 ;
+
+##  Destination folder for plots
+my $dir = "/tmp/fvwm" ;
+##  Name of fvwmbuttons module that displays plots.
+my $fbmodname = "SystemMonitor" ;
+
+##  Five hashes to define five gnuplots.
+
+my $cpu = {
+    plot => [], colorset => 201, id => "cpu",
+    fore => '#107CBA', shade => '#2C2F33', 
+    outfile => "$dir/cpu.png",
+} ;
+
+my $mem = {
+    plot => [], colorset => 202, id => "mem",
+    fore => '#8A11AD', shade => '#262226', 
+    outfile => "$dir/mem.png",
+} ;
+
+my $disk = {
+    plot => [], colorset => 203, id => "disk",
+    fore => '#C99465', shade => '#262321', 
+    outfile => "$dir/disk.png", 
+} ;
+
+my $iow = {
+    plot => [], colorset => 204, id => "iow",
+    fore => '#4CA50B', shade => '#232621', 
+    outfile => "$dir/iow.png",
+} ;
+my $net = {
+    plot => [], colorset => 205, id => "net",
+    fore => '#C9C965', shade => '#262621', 
+    outfile => "$dir/net.png", 
+} ;
+
+##  The plots all start off with zeroes.
+foreach my $x ($cpu, $iow, $mem, $disk, $net) { 
+    @{$x->{plot}} = (0) x $plot_max 
+}
+
+##  Start the FVWM module.
+my $modname = "UpdateSystemMonitor" ;
+my $module = new FVWM::Module(
+    Name => $modname,
+    Debug => 0,
+) ;
+
+##  Start the system stats module.
+my $lxs = Sys::Statistics::Linux->new(
+    cpustats  => 1,
+    memstats  => 1,
+    diskstats => 1,
+    netstats  => 1,
+) ;
+
+$lxs->init ;
+sleep 1 ;
+my $stat = $lxs->get ;
+
+##  Get the colorset hash, and obtain the colors for each gnuplot.
+
+my $cs_tracker = $module->track("Colorsets") ;
+my $cs_hash = $cs_tracker->data ;
+$cs_tracker->stop ;
+
+foreach my $x ($cpu, $iow, $mem, $disk, $net) { 
+    my $cs = $x->{colorset} ;
+    my $fore = $cs_hash->{$cs}->{fg} ;
+    my $shade = $cs_hash->{$cs}->{shadow} ;
+    $x->{fore} = sprintf('#%x',$fore) if $fore ;
+    $x->{shade} = sprintf('#%x',$shade) if $shade ;
+} ;
+
+##  Calc the memory total in GB. This remains constant.
+my $memtotalGB = nearest(.1, $stat->{memstats}->{memtotal}/1048576) ;
+
+
+####  MAIN LOOP
+
+while (1)  {
+
+    ##  Update system stats and push new data values.
+    $stat = $lxs->get ;
+    update_cpustats() ;
+    update_memstats() ;
+    update_diskstats() ;
+    update_netstats() ;
+
+    my $delay = 0 ;
+    foreach my $x ($cpu, $iow, $mem, $disk, $net) {
+
+        ##  Plot the data
+        simpleplot($x) ; 
+
+        ##  Update the image in FvwmButtons.
+        my $cmd = $delay ? "Schedule $delay " : "" ;
+        $cmd .= "SendToModule $fbmodname ChangeButton " ;
+        $cmd .= "$x->{id} Icon $x->{outfile} " ;
+        $module->send($cmd) ;
+        $delay += $step_delay ;
+    } ;
+
+    sleep $loop_delay ;
+}
+
+
+####  SUBROUTINES
+
+##  Push current cpu usage + iowait to $cpu and $iow hashes.
+sub update_cpustats  {
+    my $iowait = nearest(1, $stat->{cpustats}->{cpu}->{iowait}) ;
+    my $total = nearest(.1, $stat->{cpustats}->{cpu}->{total}) ;
+    shift @{$cpu->{plot}} ;
+    push @{$cpu->{plot}}, $total - $iowait ;
+    shift @{$iow->{plot}} ;
+    push @{$iow->{plot}}, $iowait ;
+}
+
+##  Push current memory usage to $mem hash
+sub update_memstats  {
+    my $memtotal = $stat->{memstats}->{memtotal} ;
+    my $himem = $stat->{memstats}->{memused} ;
+    my $cach = $stat->{memstats}->{cached} ;
+    my $buff = $stat->{memstats}->{buffers} ;
+    my $lomem = ($himem - $cach - $buff) * 100/$memtotal ;
+    shift @{$mem->{plot}} ;
+    push @{$mem->{plot}}, nearest(.1, $lomem) ;
+}
+
+##  Push current disk stats to $disk hash (range upto 12MB/s)
+sub update_diskstats  {
+    my $ttbyt = $stat->{diskstats}->{sda}->{ttbyt} ;
+    my $rdbyt = $stat->{diskstats}->{sda}->{rdbyt} ;
+    my $wrtbyt = $stat->{diskstats}->{sda}->{wrtbyt} ;
+    shift @{$disk->{plot}} ;
+    push @{$disk->{plot}}, ceiling($ttbyt, 12582912) ;
+}
+
+##  Push current network stats to $net hash (range upto 6MB/s)
+sub update_netstats  {
+    my $netbyts = my $rxbyts = my $txbyts = 0 ;
+    foreach my $netdev (keys %{$stat->{netstats}}) {
+        next if $netdev eq "lo" ;
+        $rxbyts += $stat->{netstats}->{$netdev}->{rxbyt} ;
+        $txbyts += $stat->{netstats}->{$netdev}->{txbyt} ;
+        $netbyts += $rxbyts + $txbyts ;
+    } ;
+    shift @{$net->{plot}} ;
+    push @{$net->{plot}}, ceiling($netbyts, 6291456) ;
+}
+
+##  Plot the data via gnuplot.
+sub simpleplot  {
+
+    ##  The hashref of the current plot.
+    my $ref = shift ;
+    ##  Color for the plot and borders.
+    my $fore = $ref->{fore} ;
+    ##  Fill color for under the plot
+    my $shade = $ref->{shade} ;
+    ##  Filename to write image to.
+    my $outfile = $ref->{outfile} ;
+
+    my $plot = Graphics::GnuplotIF->new ;
+    $plot->gnuplot_set_yrange(0, 101) ;
+    $plot->gnuplot_cmd(
+        "set terminal png size $width, " .
+            "$height background \"$back\" ",
+        "set output \"$outfile\"",
+        "unset xtics ; unset ytics ; unset key",
+        "set border 31 lc rgb \"$fore\" lw 1",
+        "set lmargin at screen 0.01", 
+        "set rmargin at screen 0.99",
+        "set tmargin at screen 0.99",
+        "set bmargin at screen 0.01",
+    ) ;
+
+    my @x1 = (1..$plot_max) ;
+    my %y1 = (
+        'y_values' => $ref->{plot},
+        'style_spec' => "filledcurves x1 lc rgb \"$shade\" " 
+    ) ;
+
+    my %y2 = (
+        'y_values' => $ref->{plot}, 
+        'style_spec' => "lines lw 1 lc rgb \"$fore\" " 
+    ) ;
+
+    $plot->gnuplot_plot_xy_style(\@x1, \%y1, \%y2) ;
+}
+
+
+####  Mathematical functions
+
+##  Pasted and modified from Math::Round
+sub nearest {
+    my $targ = abs(shift);
+    my $half = 0.50000000000008 ;
+    my @res  = map {
+        if ($_ >= 0) { $targ * int(($_ + $half * $targ) / $targ); }
+        else { $targ * POSIX::ceil(($_ - $half * $targ) / $targ); }
+     } @_ ;
+
+     return (wantarray) ? @res : $res[0] ;
+}
+
+##  Calc and return the list avg.
+sub average {
+    my $tot = 0 ;
+    my $cnt = scalar @_ ;
+    foreach (@_) { $tot += $_ } 
+    return nearest(.1, $tot/$cnt ) ;
+}
+
+##  Sets a max threshold, then normalizes and returns as a percentage.
+sub ceiling  {
+    my ($num, $max) = @_ ;
+    $num = $num > $max ? $max : $num ;
+    return nearest(.1, $num*100/$max) ;
+}
+

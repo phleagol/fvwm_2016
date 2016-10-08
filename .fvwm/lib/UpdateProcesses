@@ -1,0 +1,256 @@
+#!/usr/bin/perl
+
+## http://stackoverflow.com/questions/3803850/how-do-i-decide-if-a-variable-is-numeric-in-perl
+## http://www.perl.com/doc/FMTEYEWTK/is_numeric.html
+
+use strict ;
+use warnings ;
+use v5.20 ;
+
+use lib `fvwm-perllib dir` ;
+use FVWM::Module ;
+use List::MoreUtils qw( uniq natatime );
+use Data::Dump qw( dump ) ;
+use Path::Tiny ;
+
+##  Name of fvwmbuttons module that displays plots.
+my $fbmodname = "Processes" ;
+
+##  Redirect stderr to /dev/null
+my $log1 = path("/tmp/pppp1.log") ;
+my $log2 = path("/tmp/pppp2.log") ;
+#my $log3 = path("/tmp/pppp3.log") ;
+#
+#*STDERR = $log1 ;
+
+##  To send display cmnds to FVWM.
+my $modname = "UpdateProcesses" ;
+my $module = new FVWM::Module(
+    Name => $modname,
+    Debug => 0,
+) ;
+
+my @label = (0) x 9 ;
+my @value = (0) x 9 ;
+
+##  Start conky.
+my $conkyrc = "/tmp/fvwm/conkyrc" ;
+write_conkyrc() ;
+system("pkill -f \"conky.*$conkyrc\"") ;
+#open(CONKY, "conky -c $conkyrc 2>/dev/null | ") || die "CONKY failed. \n" ;
+open(CONKY, "conky -c $conkyrc 2>/dev/null | tee /tmp/zzzz | ") || die "CONKY failed. \n" ;
+
+my $cnt = 0 ;
+
+while (<CONKY>) {
+
+    my $idx = 0 ;
+    my @labelx = () ;
+    my @valuex = () ;
+
+    ##  Strip any whitespace padding, and store as array.
+    $_ =~ s/\s*:::\s*/:::/g ;
+    my @arx = split(/:::|\n/) ;
+
+    ##   Check for size of arx. If not 0 to 27, then next
+
+#    foreach (@arx) {
+#        #$_ = $1 if $_ =~ /(\S.*\S)/ ;
+#        $_ =~ s/^\s*// ;
+#        $_ =~ s/\s*$// ;
+#    }
+
+    my $doublets = natatime 2, @arx ;
+    while (my ($name, $usage) = $doublets->()) {
+        if ($name !~ /^\w+/ ) {
+            say STDERR "name = $name" ;
+            next ;
+        }
+        $usage += 0 ;
+        if ($usage !~ /^\d+\.?\d*$/) {
+            say STDERR "usage = :$usage:" ;
+            next ;
+        }
+    }
+
+    my @cpux = my @memx = my @iox = () ;
+    my @cpu_data = @arx[0..5] ;
+    my @mem_data = @arx[6..11] ;
+    my @ior = @arx[12..19] ;
+    my @iow = @arx[20..27] ;
+
+    my $msg = "$cnt\t" ;
+    $msg .= join(':::',@cpu_data, @mem_data, @ior,@iow) ;
+    $msg .= "\n" ;
+    $log1->append($msg) ;
+
+    ##  Parse cpu data into formatted strings (@items)
+    $doublets = natatime 2, @cpu_data ;
+    while (my ($name, $usage) = $doublets->()) {
+        $labelx[$idx] = $name ;
+        $valuex[$idx] = sprintf( '%.1f', nearest(.1, $usage) ) ;
+        $idx++ ;
+    }
+
+    ##  Parse memory data into formatted strings (@items)
+    $doublets = natatime 2, @mem_data ;
+    while (my ($name, $usage) = $doublets->()) {
+        $labelx[$idx] = $name ;
+        $valuex[$idx] = unit_convert($usage) ;
+        $idx++ ;
+    }
+
+    my %done = () ;
+    for (1..3) {
+        my $name ;
+        my $usage ;
+
+        ##  Remove processes that have appeared once already.
+        while (defined $done{$iow[0]}) { splice @iow, 0, 2 } ;
+        while (defined $done{$ior[0]}) { splice @ior, 0, 2 } ;
+
+        my $rd = defined($ior[1]) ? $ior[1] : 0 ;
+        my $wr = defined($iow[1]) ? $iow[1] : 0 ;
+
+        if ($wr >= $rd and $wr) {
+            $name = shift @iow ;
+            $usage = shift @iow ;         
+            $usage = "+" . unit_convert($usage) ;
+        } elsif ($rd) {
+            $name = shift @ior ;
+            $usage = shift @ior ;         
+            $usage = "-" . unit_convert($usage) ;
+        } else {
+            $name = "null" ;
+            $usage = 0 ;
+        }
+
+        $done{$name} = 1 ;
+        $labelx[$idx] = $name ;
+        $valuex[$idx] = $usage ;
+        $idx++ ;
+    }
+
+    $msg = "$cnt\t" ;
+    for my $num (0..8) {
+        $msg .= "  [$num] $labelx[$num] : " ;
+        $msg .= "$valuex[$num]" ;
+    }
+    $msg .= "\n" ;
+    $log2->append($msg) ;
+
+#    for (my $num = 0 ; $num <= $#labelx ; $num++ ) {
+#        if ($labelx[$num] and $labelx[$num] ne $label[$num]) {
+#            my $cmnd = "SendToModule $fbmodname ChangeButton " ;
+#            $cmnd .= "label$num Title $labelx[$num]" ;
+#            my $retvar = $module->send($cmnd) ;
+#            say STDERR "ERROR" unless $retvar ;
+#        }
+#        if ($valuex[$num] and $valuex[$num] ne $value[$num]) {
+#            my $cmnd = "SendToModule $fbmodname ChangeButton " ;
+#            $cmnd .= "val$num Title $valuex[$num]" ;
+#            my $retvar = $module->send($cmnd) ;
+#            say STDERR "ERROR" unless $retvar ;
+#        }
+#    }
+
+    my $num = 0 ;
+    while ($num <= $#labelx && $labelx[$num] ne "null") {
+        if ($labelx[$num] ne $label[$num]) {
+            my $cmnd = "SendToModule $fbmodname ChangeButton " ;
+            $cmnd .= "label$num Title $labelx[$num]" ;
+            my $retvar = $module->send($cmnd) ;
+            say STDERR "ERROR" unless $retvar ;
+        }
+        if ($valuex[$num] ne $value[$num]) {
+            my $cmnd = "SendToModule $fbmodname ChangeButton " ;
+            $cmnd .= "val$num Title $valuex[$num]" ;
+            my $retvar = $module->send($cmnd) ;
+            say STDERR "ERROR" unless $retvar ;
+        }
+        $num++ ;
+    }
+
+
+    @label = @labelx ;
+    @value = @valuex ;
+    $cnt++ ;
+}
+
+sub unit_convert   {
+    my $x = shift ;
+    my $u = ( $x < 999 )    ? $x :
+         ( $x < 999499 ) ? nearest(1, $x/1000) : nearest(1, $x/1000000) ;
+    my $v = ( $x < 999 )    ? "B" : ( $x < 999499 ) ? "K" : "M" ;
+    return $u.$v ;
+}
+
+##  Pasted and modified from Math::Round
+sub nearest {
+    my $targ = abs(shift);
+    my $half = 0.50000000000008 ;
+    my @res  = map {
+        if ($_ >= 0) { $targ * int(($_ + $half * $targ) / $targ); }
+        else { $targ * POSIX::ceil(($_ - $half * $targ) / $targ); }
+     } @_ ;
+
+     return (wantarray) ? @res : $res[0] ;
+}
+
+
+sub write_conkyrc  {
+
+open TXT, ">", $conkyrc || die " open conkyrc failed " ;
+print TXT <<'EOF';
+
+background        no
+out_to_console    yes
+
+cpu_avg_samples   1
+update_interval   5
+total_run_times   0
+
+format_human_readable   no
+no_buffers              yes
+uppercase               no
+use_spacer              none
+
+short_units       yes
+
+top_cpu_separate false
+top_name_width      20
+
+TEXT
+${top name 1}:::${top cpu 1}:::\
+${top name 2}:::${top cpu 2}:::\
+${top name 3}:::${top cpu 3}:::\
+${top_mem name 1}:::${top_mem mem_res 1}:::\
+${top_mem name 2}:::${top_mem mem_res 2}:::\
+${top_mem name 3}:::${top_mem mem_res 3}:::\
+${top_io name 1}:::${top_io io_read 1}:::\
+${top_io name 2}:::${top_io io_read 2}:::\
+${top_io name 3}:::${top_io io_read 3}:::\
+${top_io name 4}:::${top_io io_read 4}:::\
+${top_io name 1}:::${top_io io_write 1}:::\
+${top_io name 2}:::${top_io io_write 2}:::\
+${top_io name 3}:::${top_io io_write 3}:::\
+${top_io name 4}:::${top_io io_write 4}:::\
+EOF
+close TXT ;
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,132 @@
+DestroyMenu "FvwmMenu"
+AddToMenu "FvwmMenu"
++ "Accessories%/usr/local/share/icons/FVWM_Xdg/16x16/categories/applications-accessories.png%" Popup "Accessories"
++ "Games%/usr/local/share/icons/FVWM_Xdg/16x16/categories/applications-games.png%" Popup "Games"
++ "Graphics%/usr/local/share/icons/FVWM_Xdg/16x16/categories/applications-graphics.png%" Popup "Graphics"
++ "Internet%/usr/local/share/icons/FVWM_Xdg/16x16/categories/applications-internet.png%" Popup "Internet"
++ "Multimedia%/usr/local/share/icons/FVWM_Xdg/16x16/categories/applications-multimedia.png%" Popup "Multimedia"
++ "Settings%/usr/local/share/icons/FVWM_Xdg/16x16/categories/preferences-system.png%" Popup "Settings"
++ "System%/usr/local/share/icons/FVWM_Xdg/16x16/categories/applications-system.png%" Popup "System"
++ "" Nop
++ "$[gt.Regenerate XDG Menu(s)]%/usr/local/share/icons/FVWM_Xdg/16x16/categories/system-software-update.png%" Module FvwmPerl -l fvwm-menu-desktop-config.fpl
+
+DestroyMenu "Accessories"
+AddToMenu "Accessories"
++ "Accessibility%/usr/local/share/icons/FVWM_Xdg/16x16/categories/preferences-desktop.png%" Popup "Accessories/Accessibility"
++ "Text Editor%/home/phleagol/.fvwm/images/xdgmenu/16x16-accessories-text-editor.png%" Popup "Accessories/Text Editor"
++ "Figaro's Password Manager 2%/usr/share/icons/gnome/16x16/categories/gnome-applications.png%" Exec exec  fpm2 
++ "Rxvt Color Unicode Terminal%/home/phleagol/.fvwm/images/xdgmenu/16x16-urxvt_48x48.png%" Exec exec  urxvt
++ "UXTerm%/home/phleagol/.fvwm/images/xdgmenu/16x16-xterm-color.png%" Exec exec  uxterm
++ "XTerm%/home/phleagol/.fvwm/images/xdgmenu/16x16-xterm-color.png%" Exec exec  xterm
+
+DestroyMenu "Accessories/Accessibility"
+AddToMenu "Accessories/Accessibility"
++ "Screen Magnifier%/usr/share/icons/gnome/16x16/actions/system-search.png%" Exec exec  xzoom -mag 3 -geometry 320x240
+
+DestroyMenu "Accessories/Text Editor"
+AddToMenu "Accessories/Text Editor"
++ "GVim%/home/phleagol/.fvwm/images/xdgmenu/16x16-gvim.png%" Exec exec  gvim -f 
++ "Leafpad%/home/phleagol/.fvwm/images/xdgmenu/16x16-leafpad.png%" Exec exec  leafpad 
++ "Vim%/home/phleagol/.fvwm/images/xdgmenu/16x16-gvim.png%" Exec exec  vim 
+
+DestroyMenu "Games"
+AddToMenu "Games"
++ "Blocks Games%/usr/local/share/icons/FVWM_Xdg/16x16/categories/package_games_blocks.png%" Popup "Games/Blocks Games"
+
+DestroyMenu "Games/Blocks Games"
+AddToMenu "Games/Blocks Games"
++ "LinuxBBQ Games%/home/phleagol/.fvwm/images/xdgmenu/16x16-bbqtux2.png%" Exec exec  x-terminal-emulator -e bbqgames
+
+DestroyMenu "Graphics"
+AddToMenu "Graphics"
++ "2D Graphics%/usr/local/share/icons/FVWM_Xdg/16x16/categories/2dgraphics.png%" Popup "Graphics/2D Graphics"
++ "Viewer%/usr/local/share/icons/FVWM_Xdg/16x16/categories/viewer.png%" Popup "Graphics/Viewer"
++ "Gcolor2%/home/phleagol/.fvwm/images/xdgmenu/16x16-gcolor2.png%" Exec exec  gcolor2
++ "ImageMagick (display Q16)%/usr/share/icons/gnome/16x16/categories/gnome-applications.png%" Exec exec  /usr/bin/display-im6 
++ "ImageMagick (display Q16)%/home/phleagol/.fvwm/images/xdgmenu/16x16-display-im6.q16.png%" Exec exec  /usr/lib/x86_64-linux-gnu/ImageMagick-6.8.9/bin-Q16/display 
++ "Take screenshot%/home/phleagol/.fvwm/images/xdgmenu/16x16-bbqtux2.png%" Exec exec  bbqscrot
+
+DestroyMenu "Graphics/2D Graphics"
+AddToMenu "Graphics/2D Graphics"
++ "Mirage%/home/phleagol/.fvwm/images/xdgmenu/16x16-mirage.png%" Exec exec  mirage 
+
+DestroyMenu "Graphics/Viewer"
+AddToMenu "Graphics/Viewer"
++ "Mirage%/home/phleagol/.fvwm/images/xdgmenu/16x16-mirage.png%" Exec exec  mirage 
++ "Viewnior%/home/phleagol/.fvwm/images/xdgmenu/16x16-viewnior.png%" Exec exec  viewnior 
+
+DestroyMenu "Internet"
+AddToMenu "Internet"
++ "Email%/usr/share/icons/gnome/16x16/places/gnome-fs-directory.png%" Popup "Internet/Email"
++ "News%/usr/local/share/icons/FVWM_Xdg/16x16/categories/internet-news-reader.png%" Popup "Internet/News"
++ "Web Browser%/usr/local/share/icons/FVWM_Xdg/16x16/categories/internet-web-browser.png%" Popup "Internet/Web Browser"
+
+DestroyMenu "Internet/Email"
+AddToMenu "Internet/Email"
++ "Icedove%/home/phleagol/.fvwm/images/xdgmenu/16x16-icedove.png%" Exec exec  icedove 
+
+DestroyMenu "Internet/News"
+AddToMenu "Internet/News"
++ "Icedove%/home/phleagol/.fvwm/images/xdgmenu/16x16-icedove.png%" Exec exec  icedove 
+
+DestroyMenu "Internet/Web Browser"
+AddToMenu "Internet/Web Browser"
++ "Dillo%/home/phleagol/.fvwm/images/xdgmenu/16x16-dillo.png%" Exec exec  dillo 
++ "Firefox ESR%/home/phleagol/.fvwm/images/xdgmenu/16x16-firefox-esr.png%" Exec exec  firefox-esr 
+
+DestroyMenu "Multimedia"
+AddToMenu "Multimedia"
++ "Audio%/usr/local/share/icons/FVWM_Xdg/16x16/categories/audio-x-generic.png%" Popup "Multimedia/Audio"
++ "Video%/usr/local/share/icons/FVWM_Xdg/16x16/categories/video-x-generic.png%" Popup "Multimedia/Video"
+
+DestroyMenu "Multimedia/Audio"
+AddToMenu "Multimedia/Audio"
++ "Console Only%/usr/local/share/icons/FVWM_Xdg/16x16/categories/applications-terminalonly.png%" Popup "Multimedia/Audio/Console Only"
++ "Player%/usr/local/share/icons/FVWM_Xdg/16x16/categories/multimedia-player.png%" Popup "Multimedia/Audio/Player"
++ "TV%/usr/local/share/icons/FVWM_Xdg/16x16/categories/television.png%" Popup "Multimedia/Audio/TV"
+
+DestroyMenu "Multimedia/Audio/Console Only"
+AddToMenu "Multimedia/Audio/Console Only"
++ "Ncmpcpp%/usr/share/icons/gnome/16x16/categories/gnome-applications.png%" Exec exec  ncmpcpp
+
+DestroyMenu "Multimedia/Audio/Player"
+AddToMenu "Multimedia/Audio/Player"
++ "LinuxBBQ Radio%/home/phleagol/.fvwm/images/xdgmenu/16x16-bbqtux2.png%" Exec exec  x-terminal-emulator -e bbqradio
++ "Music on Console%/home/phleagol/.fvwm/images/xdgmenu/16x16-bbqtux2.png%" Exec exec  x-terminal-emulator -e "mocp -T transparent-background"
++ "Ncmpcpp%/usr/share/icons/gnome/16x16/categories/gnome-applications.png%" Exec exec  ncmpcpp
++ "Raffles Stream Player%/home/phleagol/.fvwm/images/xdgmenu/16x16-bbqtux2.png%" Exec exec  x-terminal-emulator -e raffles
++ "mpv Media Player%/usr/share/icons/hicolor/16x16/apps/mpv.png%" Exec exec  /usr/bin/mpv --profile=pseudo-gui -- 
+
+DestroyMenu "Multimedia/Audio/TV"
+AddToMenu "Multimedia/Audio/TV"
++ "mpv Media Player%/usr/share/icons/hicolor/16x16/apps/mpv.png%" Exec exec  /usr/bin/mpv --profile=pseudo-gui -- 
+
+DestroyMenu "Multimedia/Video"
+AddToMenu "Multimedia/Video"
++ "Player%/usr/local/share/icons/FVWM_Xdg/16x16/categories/multimedia-player.png%" Popup "Multimedia/Video/Player"
+
+DestroyMenu "Multimedia/Video/Player"
+AddToMenu "Multimedia/Video/Player"
++ "mpv Media Player%/usr/share/icons/hicolor/16x16/apps/mpv.png%" Exec exec  /usr/bin/mpv --profile=pseudo-gui -- 
+
+DestroyMenu "Settings"
+AddToMenu "Settings"
++ "Adobe Flash Player%/home/phleagol/.fvwm/images/xdgmenu/16x16-flash-player-properties.png%" Exec exec  flash-player-properties
++ "GParted%/home/phleagol/.fvwm/images/xdgmenu/16x16-gparted.png%" Exec exec  gparted-pkexec
+
+DestroyMenu "System"
+AddToMenu "System"
++ "Terminal Emulator%/usr/local/share/icons/FVWM_Xdg/16x16/categories/utilities-terminal.png%" Popup "System/Terminal Emulator"
++ "BleachBit%/home/phleagol/.fvwm/images/xdgmenu/16x16-bleachbit.png%" Exec exec  bleachbit
++ "BleachBit (as root)%/home/phleagol/.fvwm/images/xdgmenu/16x16-bleachbit.png%" Exec exec  su-to-root -X -c bleachbit
++ "Copy ISO to USB%/home/phleagol/.fvwm/images/xdgmenu/16x16-bbqtux2.png%" Exec exec  bbqusb
++ "Create System Snapshot%/home/phleagol/.fvwm/images/xdgmenu/16x16-bbqtux2.png%" Exec exec  x-terminal-emulator -e "sudo bbqsnapshot"
++ "GParted%/home/phleagol/.fvwm/images/xdgmenu/16x16-gparted.png%" Exec exec  gparted-pkexec
++ "Install LinuxBBQ%/home/phleagol/.fvwm/images/xdgmenu/16x16-bbqtux2.png%" Exec exec  x-terminal-emulator -e "sudo bbqinstaller"
++ "Install additional software%/home/phleagol/.fvwm/images/xdgmenu/16x16-bbqtux2.png%" Exec exec  x-terminal-emulator -e roastyourown
+
+DestroyMenu "System/Terminal Emulator"
+AddToMenu "System/Terminal Emulator"
++ "UXTerm%/home/phleagol/.fvwm/images/xdgmenu/16x16-xterm-color.png%" Exec exec  uxterm
++ "XTerm%/home/phleagol/.fvwm/images/xdgmenu/16x16-xterm-color.png%" Exec exec  xterm
+

@@ -1,0 +1,248 @@
+#!/usr/bin/perl
+
+##  CURRENT BEST SCRIPT
+
+##  Useful webpages :-
+##  http://www.imagemagick.org/script/command-line-processing.php
+##  http://www.imagemagick.org/script/perl-magick.php
+##  http://www.imagemagick.org/Usage/draw/ 
+
+use strict ;
+use warnings ;
+use utf8 ;
+use v5.22 ;
+use lib `fvwm-perllib dir` ;
+
+use FVWM::Module ;
+use Image::Magick ;             ##  libimage-magick-perl
+use Path::Tiny ;                ##  libpath-tiny-perl
+use Data::Dump qw( dump ) ;
+
+##  Name of the FvwmButtons weather panel.
+my $panelmodname = "DiskUsagePanel" ;
+##  Output image filepath
+my $outfile = path("$ENV{FVWM_USERDIR}/images/panel-disk-usage.png") ;
+##  Output image size
+my $canvas_geometry = "290x150" ;
+##  Progress bar size.
+my $barwidth = 260 ;
+my $barheight = 8 ;
+##  Imagemagick quality setting.
+my $quality = 99 ;
+##  Path to harddrive icon.
+my $icondir = "$ENV{FVWM_USERDIR}/images/panelbar/diskusage" ;
+my $iconfile = "panel-hdd.png" ;
+##  Size of hdd icon
+my $iconsize = "40x40" ;
+
+##  Start the FVWM module.
+my $modname = "UpdateDiskUsagePanel" ;
+my $module = new FVWM::Module(
+    Name => $modname,
+    Debug => 0,
+) ;
+
+##  Get FVWM colorset data.
+my $cs_tracker = $module->track("Colorsets") ;
+my $cs_hash = $cs_tracker->data ;
+$cs_tracker->stop ;
+
+####  COLORS
+
+##  Color for canvas background.  
+my $canvas_bg = "gray9" ;
+##  Colors for text, bold and plain.
+my $text_color = get_color(325,"fg") ; 
+my $text_bold_color = get_color(326,"fg") ; 
+
+##  Colors and geometry of progress bars.
+my $bar_fg = get_color(327,"fg") ;
+my $bar_bg = get_color(327,"bg") ;
+
+##  Descriptors for large and small fonts.
+my $fontdir = "/usr/share/fonts/X11/misc" ;
+my $fontsmall = {
+    file => "$fontdir/ter-u16b_iso-8859-1.pcf.gz", width => 8,
+} ;
+
+##  Store disk usage info for rootfs(btrfs) and data(ext4) partitions.
+
+my $btrfs_max = 1 ;
+my $btrfs_alloc = 1 ;
+my $btrfs_alloc_perc = 1 ;
+my $btrfs_used = 1 ;
+my $btrfs_used_perc = 1 ;
+my $data_max = 1 ;
+my $data_used = 1 ;
+my $data_perc = 1 ;
+
+update_disk_usage() ;
+
+##  Create blank canvas.
+my $image = Image::Magick->new ;
+$image->Set(size => $canvas_geometry) ;
+$image->ReadImage("canvas:$canvas_bg") ;
+
+####  Draw the rootfs partition (/dev/sda7)
+
+##  Overlay canvas with two harddrive icons.
+my $icon = load_image("$icondir/$iconfile") ;
+$icon->AdaptiveResize( geometry => $iconsize) ;
+$image->Composite(image => $icon, x => 15, y => 10) ;
+
+##  Annotate with disk usage details.
+my $text = "ROOT, /dev/sda7, btrfs" ;
+my $xpos = 67 ; my $ypos = 25 ;
+$image = left_justified($xpos, $ypos, $text_color, $fontsmall, $text, $image) ;
+
+$text = "${btrfs_used}Gb used of ${btrfs_max}Gb - $btrfs_used_perc%" ;
+$xpos = 67 ; $ypos = 42 ;
+$image = left_justified($xpos, $ypos, $text_color, $fontsmall, $text, $image) ;
+
+##  Add progressbar.
+$image = draw_progress(15, 58, $btrfs_used_perc, $image) ; 
+
+####  Draw the data partition (/dev/sda9)
+
+##  Overlay hdd icon.
+$icon = load_image("$icondir/$iconfile") ;
+$icon->AdaptiveResize( geometry => $iconsize) ;
+$image->Composite(image => $icon, x => 15, y => 80) ;
+
+##  Annotate data usage details.
+$text = "DATA, /dev/sda9, ext4" ;
+$xpos = 67 ; $ypos = 95 ;
+$image = left_justified($xpos, $ypos, $text_color, $fontsmall, $text, $image) ;
+
+$text = "${data_used}Gb used of ${data_max}Gb - $data_perc%" ;
+$xpos = 67 ; $ypos = 112 ;
+$image = left_justified($xpos, $ypos, $text_color, $fontsmall, $text, $image) ;
+
+##  Add progressbar
+$image = draw_progress(15, 128, $data_perc, $image) ; 
+
+##  Save the finished thumbnail.
+save_image($image, $outfile) ;
+
+##  Update image in the FvwmButtons module.
+my $cmd = "SendToModule $panelmodname ChangeButton dicon Icon " ;
+$cmd .= $outfile->basename ;
+$module->send($cmd) ;
+
+exit ;
+
+####  SUBROUTINES
+
+sub get_color {
+    my $cs_num = shift ;
+    my $opt = shift ;
+    my $color = $cs_hash->{$cs_num}->{$opt} ;
+    return sprintf('#%x',$color) ;
+}
+
+sub load_image {
+
+    my $err = 1 ;
+    my $image = Image::Magick->New() ;
+    my $imgfile = shift ;
+
+    open(IMAGE, $imgfile) or return 0 ;
+    $err = $image->Read(file=>\*IMAGE);
+    close(IMAGE);
+    if ($err) { return 0 } else { return $image } ;
+}
+
+sub save_image  {
+
+    my $image = shift ;
+    my $outfile = shift ;
+
+    open(IMAGE, ">$outfile") ;
+    return 0 if $image->Write(
+        file => \*IMAGE, 
+        filename => $outfile, 
+        quality => $quality,
+    ) ;
+
+    return 1 ;
+}
+
+sub draw_progress {
+
+    my $xpos = shift ;
+    my $ypos = shift ;
+    my $pro1 = shift ;
+    my $img = shift ;
+    my $width ;
+
+    ##  Bar background
+
+    my $bar = Image::Magick->new ;
+    $bar->Set(size => "${barwidth}x$barheight") ;
+    $bar->ReadImage("canvas:$bar_bg") ;
+    $image->Composite(image => $bar, x => $xpos, y => $ypos) ;
+
+    ##  Progress bar
+
+    $width = int($pro1*$barwidth/99 + .5) ;
+    $bar = Image::Magick->new ;
+    $bar->Set(size => "${width}x$barheight") ;
+    $bar->ReadImage("canvas:$bar_fg") ;
+    $image->Composite(image => $bar, x => $xpos, y => $ypos) ;
+
+    return $image ;
+}
+
+sub left_justified {
+
+    my $xpos = shift ;
+    my $ypos = shift ;
+    my $color = shift ;
+    my $font = shift ;
+    my $text = shift ;
+    my $img = shift ;
+
+    return 0 if $img->Annotate(
+        x => $xpos,
+        y => $ypos,
+        gravity => "NorthWest",
+        font => $font->{file},
+        fill => $color, 
+        text => $text,
+    ) ;
+
+    return $img ;
+}
+
+sub update_disk_usage {
+
+    foreach (`sudo /root/bin/sudo-btrfs-fi-usage`) {
+        $btrfs_max = nearest(1, $1) if /Device\ssize:\s+([.0-9]+)GiB/ ;
+        $btrfs_alloc = nearest(.1, $1) if /Device\sallocated:\s+([.0-9]+)GiB/ ;
+        $btrfs_used = nearest(.1, $1) if /Used:\s+([.0-9]+)GiB/ ;
+    }
+
+    $btrfs_used_perc = nearest(1, $btrfs_used/$btrfs_max*99) ;
+    $btrfs_alloc_perc = nearest(1, $btrfs_alloc/$btrfs_max*99) ;
+
+    foreach (`df -h --output=source,size,used,pcent`) {
+        if (/sda9\s+(\d+)G\s+(\d+)G\s+(\d+)%$/)  {
+            $data_max = $1 ;
+            $data_used = $2 ;
+            $data_perc = $3 ;
+        }
+    }
+}
+
+##  Cribbed from Math::Round
+sub nearest {
+    my $targ = abs(shift);
+    my $half = 0.50000000000008 ;
+    my @res  = map {
+        if ($_ >= 0) { $targ * int(($_ + $half * $targ) / $targ); }
+        else { $targ * POSIX::ceil(($_ - $half * $targ) / $targ); }
+     } @_ ;
+
+     return (wantarray) ? @res : $res[0] ;
+}
+

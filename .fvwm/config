@@ -1,0 +1,3777 @@
+## vim: sts=0:noet:syntax=fvwm:foldmethod=marker
+##
+##  ┏━╸┏━┓   ╻ ╻╻┏━┓╺┳╸╻ ╻┏━┓╻     ╻ ╻╻┏┓╻╺┳┓┏━┓╻ ╻   ┏┳┓┏━┓┏┓╻┏━┓┏━╸┏━╸┏━┓
+##  ┣╸  ╺┛   ┃┏┛┃┣┳┛ ┃ ┃ ┃┣━┫┃     ┃╻┃┃┃┗┫ ┃┃┃ ┃┃╻┃   ┃┃┃┣━┫┃┗┫┣━┫┃╺┓┣╸ ┣┳┛
+##  ╹   ╹    ┗┛ ╹╹┗╸ ╹ ┗━┛╹ ╹┗━╸   ┗┻┛╹╹ ╹╺┻┛┗━┛┗┻┛   ╹ ╹╹ ╹╹ ╹╹ ╹┗━┛┗━╸╹┗╸
+##
+##  Best viewed with vim folding enabled !!!
+##  http://github.com/daggoth/fvwm_Nov2016
+
+##  General Settings                                            {{{1
+##   ├Default Variables                                         {{{2 
+
+##  The desired number of desktops, max and min.
+InfoStoreAdd desk_min 1
+InfoStoreAdd desk_max 8
+
+##  Default wallpaper. Only for when another wall hasnt already been selected.
+InfoStoreAdd wallpaper "$[infostore.wallpapers_folder]/default.jpg"
+
+##  Theme used to build icons for the XdgMenu
+##  These icons installed from : https://github.com/domichel/fvwm-xdg-menu
+InfoStoreAdd app_icon_theme FVWM_Xdg
+
+##  The height of the titlebar in pixels.
+InfoStoreAdd title_height 25
+
+##  The size of svg icons in the window menu.
+InfoStoreAdd wm_iconsize 16x16
+
+##  List file for youtube-dl urls.
+InfoStoreAdd ytdl_list $[HOME]/Youtube/list
+
+##  Path to filename where passwords are stored.
+InfoStoreAdd passwords "$[HOME]/.passwords.gpg"
+
+##                                                              }}}2
+##   ├Folders                                                   {{{2 
+
+##  Folder where wallpapers are stored.
+InfoStoreAdd wallpapers_folder "$[FVWM_USERDIR]/wallpapers"
+##  Folder where wallpaper thumbnails are stored by WallBrowser module.
+SetEnv FVWM_WALLTHUMBS "$[FVWM_USERDIR]/.wallthumbs"
+##  Folder where thumbnail icons are stored by Thumbnail module.
+SetEnv FVWM_THUMBS "$[FVWM_USERDIR]/.thumbicons"
+##  Folder where clipboard entries are stored by ClipMenu module.
+SetEnv FVWM_CLIPMENU "$[FVWM_USERDIR]/.clipmenu"
+##  Folder where icons for XdgMenu will be stored
+InfoStoreAdd app_icon_dir $[FVWM_USERDIR]/images/xdgmenu
+
+##  Create necessary folders 
+Exec mkdir -p /tmp/fvwm "$[infostore.wallpapers_folder]" 2>/dev/null
+Exec mkdir -p "$[FVWM_THUMBS]" "$[FVWM_WALLTHUMBS]" 2>/dev/null
+Exec mkdir -p  "$[HOME]/images" "$[FVWM_CLIPMENU]" 2>/dev/null
+
+##  Delete old files
+Exec rm "$[FVWM_THUMBS]/0x*" 2>/dev/null
+Exec rm "$[FVWM_XSEL]/*" 2>/dev/null
+
+##                                                              }}}2
+##   ├Paths                                                     {{{2 
+
+##  Imagepath - add all sub-folders of ~/.fvwm/images
+PipeRead 'for zz in $(find $[FVWM_USERDIR]/images -type d ) ; \
+        do echo ImagePath  +:$zz ; done '
+
+##  ImagePath - add other system folders with images.
+ImagePath +:/usr/share/icons
+ImagePath +:/usr/share/pixmaps
+ImagePath +:/usr/include/X11/bitmaps/
+
+##  ModulePath - add all sub-folders of ~/.fvwm/lib
+PipeRead 'for zz in $(find $[FVWM_USERDIR]/lib -type d ) ; \
+        do echo "ModulePath  +:$zz" ; done '
+
+##                                                              }}}2
+##   ├Font Aliases                                              {{{2 
+
+InfoStoreAdd dejavu16 xft:DejaVuSansMono:style=Book:pixelsize=16
+InfoStoreAdd dejavu16bold xft:DejaVuSansMono:style=Bold:pixelsize=16
+InfoStoreAdd dejavu18 xft:DejaVuSansMono:style=Book:pixelsize=18
+InfoStoreAdd dejavu18bold xft:DejaVuSansMono:style=Bold:pixelsize=18
+
+##                                                              }}}2
+##   ├Desks, Pages + Layers                                     {{{2
+
+##  The desired number of desktops.
+PipeRead 'j="$(($[infostore.desk_max] - $[infostore.desk_min] + 1))" ; \
+          echo "InfoStoreAdd desk_count $j" '
+EwmhNumberOfDesktops $[infostore.desk_count]
+
+##  Just 1 page per desktop
+DesktopSize 1x1
+
+##  A 3px margin on the RHS
+EwmhBaseStruts 0 3 0 0
+
+##  Disable edge effects.
+EdgeScroll 0 0
+EdgeThickness 0
+EdgeResistance -1
+# DesktopName ??
+
+##  Default Layers
+
+##  Valid layer numbers can be 60+
+InfoStoreAdd belowbottomlayer 1
+InfoStoreAdd bottomlayer 2
+InfoStoreAdd putlayer 5
+InfoStoreAdd toplayer 8
+InfoStoreAdd abovetoplayer 11
+
+DefaultLayers $[infostore.bottomlayer] $[infostore.putlayer] $[infostore.toplayer]
+
+##                                                              }}}2
+##   ├Mouse, Cursor + Keys                                      {{{2
+
+MoveThreshold -1
+BusyCursor DynamicMenu True, ModuleSynchronous True, Read False, Wait False
+
+##  Prevent NumLock/ScrollLock - known to cause problems w/bindings.
+IgnoreModifiers L25       
+
+##  Any click less than ClickTime is treated as a single click, not dbl.
+ClickTime 300
+
+InfoStoreAdd cursor_fg white
+InfoStoreAdd cursor_bg black
+
+##  Defining cursor styles for various contexts.
+CursorStyle ROOT left_ptr $[infostore.cursor_fg] $[infostore.cursor_bg]
+CursorStyle TITLE left_ptr $[infostore.cursor_fg] $[infostore.cursor_bg]
+CursorStyle DEFAULT left_ptr $[infostore.cursor_fg] $[infostore.cursor_bg]
+CursorStyle SYS left_ptr $[infostore.cursor_fg] $[infostore.cursor_bg]
+CursorStyle MENU left_ptr $[infostore.cursor_fg] $[infostore.cursor_bg]
+CursorStyle WAIT watch $[infostore.cursor_fg] $[infostore.cursor_bg]
+
+##                                                              }}}2
+##   ├Move, Resize and Shade                                    {{{2
+
+##  Windows stay opaque during Move cmnds.
+Style * ResizeOpaque
+OpaqueMoveSize unlimited
+
+##  An even smoother AnimatedMove command.
+SetAnimation 20 -.01 0 .01 .02 .03 .05 .08 .13 .18 .24 .3 .37 \
+.45 .52 .6 .68 .75 .8 .85 .88 .90 .92 .94 .96 .97 .98 .99 1.0
+
+##  Animation for the WindowShade cmnd.
+Style * WindowShadeSteps 60
+Style * WindowShadeShrinks
+#Style * WindowShadeBusy
+Style * WindowShadeLazy
+
+##                                                              }}}2
+##   ├Geometry Window                                           {{{2
+
+##  Keep it hidden.
+HideGeometryWindow Move, Resize
+
+##  Defaults that really only affect the geometry window.
+DefaultFont terminus-bold-16
+DefaultColorset 0
+
+##                                                              }}}2
+##   ├Miscellaneous                                             {{{2
+
+Emulate Fvwm
+ColormapFocus FollowsFocus
+BugOpts FlickeringMoveWorkaround True
+# BugOpts ExplainWindowPlacement On
+ 
+##  Timeout in seconds for non-responsive modules. A common problem.
+ModuleTimeout 1
+
+##                                                              }}}2
+##   ├Focus + Placement                                         {{{2
+
+##  Similar focus behavior to xfce/openbox.
+Style * ClickToFocus
+##  Closed windows release focus to the next window.
+Style * FPReleaseFocus
+##  When a window is raised, its transient windows are raised too.
+Style * RaiseTransient
+##  When a window is lowered, its transient windows are lowered too.
+Style * LowerTransient
+##  Prevent windows that are not resizable from being maximized
+Style * !AllowMaximizeFixedSize
+##  Respect EWMH hints that change the window layer.
+Style * EWMHUseStackingOrderHints
+##  Ignore the program specified position for any new windows
+Style * !UsePPosition
+##  The default policy for placing new windows
+Style * PositionPlacement Center
+#Style * TileCascadePlacement
+
+##  Ignore decor hinting, except MWM.
+Style * NoOLDecor, GNOMEIgnoreHints
+Style * MWMFunctions, MWMDecor, HintOverride
+Style * DecorateTransient
+
+##  Prevent focus stealing by new windows.
+Style * SkipMapping
+DestroyFunc EWMHActivateWindowFunc
+AddToFunc EWMHActivateWindowFunc I Nop
+
+##  Ignore urgency hints.
+DestroyFunc UrgencyFunc
+AddToFunc UrgencyFunc I Nop
+DestroyFunc UrgencyDoneFunc
+AddToFunc UrgencyDoneFunc I Nop
+
+##                                                              }}}2
+##   └Icon Settings                                             {{{2
+
+####  Mini-icons
+
+Style WithMiniIcon EWMHMiniIconOverride, EWMHDonateMiniIcon 
+
+##  For when the EWMH mini-icon is missing or ugly.
+Style URxvt MiniIcon mi_urxvt.png, UseStyle WithMiniIcon
+Style Ncmpcpp* MiniIcon mi_ncmpcpp.png, UseStyle WithMiniIcon
+Style Transmissio* MiniIcon mi_transmission.png, UseStyle WithMiniIcon
+
+####  Thumbnails
+
+##  No titles beneath the thumbnail icons.
+Style * !IconTitle
+##  Ignore any client-provided icons.
+Style * IconOverride
+##  Ignore any icon positioning provided by the program.
+Style * !UseIconPosition
+##  Put no limitation on the icon size.
+Style * IconSize -1 -1
+##  Width of the surrounding border.
+Style * IconBackgroundRelief 2
+##  Color(set) of the surrounding border.
+Style * IconBackgroundColorset 25
+##  No padding between the icon and border.
+Style * IconBackgroundPadding 0
+##  Placement policy for the thumbnail icons.
+Style * IconBox $[vp.width]x300-20-74, IconGrid 235 150, IconFill right bottom
+
+##  Also see the Thumbnail module below.
+
+##                                                              }}}2
+##                                                              }}}1
+
+##  Window Styles                                               {{{1
+##   ├Default Decor                                             {{{2 
+
+DestroyDecor Default
+AddToDecor Default
++ TitleStyle Centered Height $[infostore.title_height]
++ TitleStyle Colorset 10 -- Flat
++ ButtonStyle All Colorset 11 -- UseTitleStyle Flat
++ AddButtonStyle 1 MiniIcon
++ BorderStyle Colorset 12 -- Flat 
+
+##  Font for text in the titlebar
+Style * Font terminus-bold-18
+##  Colorset for text in titlebar 
+Style * Colorset 13, HilightColorset 13
+##  Thickness of the border.
+Style * Borderwidth 2, Handlewidth 2
+
+##                                                              }}}2
+##   ├Window Styles                                             {{{2
+
+Style * UseDecor Default, !Title, !StickyStippledTitle
+
+##  Style templates
+Style Normal WindowListHit, ClickToFocus, StaysPut
+Style Inert WindowListSkip, NeverFocus, StaysOnBottom
+Style StartWithFocus State 10
+
+##  Initial geometry style presets
+Style Init97x93 InitialMapCommand ResizeMove frame 97 93 50-50w 50-50w-10p 
+Style Init90x85 InitialMapCommand ResizeMove frame 90 85 50-50w 50-50w-10p 
+Style Init60x90 InitialMapCommand ResizeMove frame 60 90 50-50w 50-50w-10p 
+Style Init60x40 InitialMapCommand ResizeMove frame 60 40 50-50w 50-50w 
+Style Init80cx6c InitialMapCommand ResizeMove frame 80c 6c 50-50w 50-50w 
+Style Init96cx16c InitialMapCommand ResizeMove frame 96c 16c 50-50w 50-50w 
+Style Init115cx14c InitialMapCommand ResizeMove frame 115c 14c 50-50w 50-50w 
+
+Style FvwmIdent StaysPut, InitialMapCommand Move 50-50w 50-50w
+Style FF-Confirm Title, Sticky, StaysPut, WindowListHit
+Style FF-Okay Title, Sticky, StaysPut, WindowListHit
+Style FF-Notify UseStyle Inert, StaysOnTop, Sticky
+
+Style xzoom* StaysOnTop
+Style Gmrun StaysOnTop
+
+Style Vim* UseStyle Init97x93
+Style Dillo:* UseStyle Init97x93
+Style w3m* UseStyle Init97x93
+Style rtv* UseStyle Init97x93
+Style youtube-dl UseStyle Init96cx16c
+Style Manpage:* UseStyle Init97x93
+Style Perldoc:* UseStyle Init90x85
+Style ~/.passwords.gpg UseStyle Init60x90
+Style ThePirateBay UseStyle Init90x85
+Style "tail -f*" UseStyle Init60x40
+Style "apt update" UseStyle Init115cx14c 
+Style "Tomb Unmount" UseStyle Init80cx6c
+Style "Tomb Slam" UseStyle Init80cx6c
+Style sxiv* InitialMapCommand ResizeSxiv
+
+Style Newsbeuter InitialMapCommand ResizeMove frame 97 86 23p 36p ewmhiwa
+Style "Tomb Mount" InitialMapCommand ResizeMove frame 80c 10c 50-50w 50-50w 
+Style "Mpv Identify" InitialMapCommand ResizeMove frame 60 21c 50-50w 50-50w 
+Style Psmem InitialMapCommand ResizeMove frame 64c 80 50-50w 50-50w ewmhiwa
+Style Dillo InitialMapCommand ResizeMove frame 97 87 20p 20p ewmhiwa
+
+Style FF-TVSchedule StartsOnDesk 1, UseStyle StartWithFocus 
+Style FF-TVSchedul* Title, WindowListHit
+
+Style ifup_eth0 StartsOnDesk 5
+Style ifup_eth0 InitialMapCommand ResizeMove 88c 19c 50-50w 50-50w-10p 
+
+Style FvwmConsole UseStyle Init60x40
+Style FvwmConso1e StartsOnDesk 8, UseStyle StartWithFocus 
+Style FvwmConso1e InitialMapCommand ResizeMove frame 48 86 -+20p ++20p ewmhiwa
+
+Style Xerrors StartsOnDesk 8
+Style Xerrors InitialMapCommand ResizeMove frame 48 86 ++20p ++20p ewmhiwa
+
+Style SystemMonitor UseStyle Inert, StartsOnDesk 2
+Style SystemMonitor InitialMapCommand Move 20p 22p ewmhiwa
+
+Style Processes StartsOnDesk 2, UseStyle Inert
+Style Processes InitialMapCommand Move ++20p ++412p ewmhiwa
+
+Style Transmission StartsOnDesk 1
+Style Transmissio* Title
+Style Transmissio* InitialMapCommand ResizeMove frame 73 78 50-50w 35p ewmhiwa
+
+Style MainTmux StartsOnDesk 4
+Style MainTmux InitialMapCommand ResizeMove frame 97 88 21p 26p ewmhiwa
+
+##  Relates to the NcmpcppGui module.
+Style NcmpcppGui FixedSize, StartsOnDesk 2
+Style NcmpcppGui InitialMapCommand Move -+20p ++20p
+Style ProgressBar NeverFocus, WindowListSkip, FixedSize
+Style myncmpcpp WindowListSkip, FixedSize
+
+##                                                              }}}2
+##   └Other App Styles                                          {{{2
+
+##  Read in more styles for other programs.
+Read $[FVWM_USERDIR]/apps/002-Firefox
+Read $[FVWM_USERDIR]/apps/003-Icedove
+Read $[FVWM_USERDIR]/apps/004-Inkscape
+
+##                                                              }}}2
+##                                                              }}}1
+
+##  Functions                                                   {{{1
+##   ├Startup + Shutdown                                        {{{2
+##   │ ├StartFunction                                           {{{3
+
+####  STARTFUNCTION - the first function run by fvwm.
+
+AddToFunc StartFunction
+
++ I Exec sudo /root/bin/sudo-fvwm-startfunc
+
+##  Cleanup some more old files
++ I -Exec rm $HOME/.newsbeuter/*lock* 2>/dev/null
++ I -Exec rm $HOME/feh_*_filelist 2>/dev/null
++ I -Exec rm $HOME/.xsel.log 2>/dev/null
++ I -Exec rm $HOME/.w3m/w3mtmp*.gz 2>/dev/null
++ I -Exec rm $HOME/.gnuplot.*.stderr.log 2>/dev/null
++ I -Exec sed -i '/tumblr/d' $HOME/.cd_history 2>/dev/null
+
+##  Reset the youtube list
++ I Exec >$[infostore.ytdl_list]
+
+##  Start up various daemons
++ I Exec exec mpd
++ I Exec exec transmission-daemon
+
+##  Set initial brightness + volume
++ I Schedule 500 Exec sudo /root/bin/bl_set.sh 60
+
+##  Restore the last used root wallpaper.
++ I ReadInfoStore wallpaper $[FVWM_USERDIR]/.wallpaper
++ I RootCrop "$[infostore.wallpaper]"
+
+##  Autostart main urxvt/tmux on desktop four.
++ I GotoDesk 0 4
++ I OpenMainTmux
+
+##  Various fvwm modules.
++ I Schedule  2000 Module FvwmEvent
++ I Schedule  2500 Module FvwmAuto 300
++ I Schedule  3000 Module FvwmCommandS
++ I Schedule  7000 Module Thumbnail
++ I Schedule  9999 Module FvwmAnimate
++ I Schedule 15000 Module ClipMenu
+
+##  Various FvwmButtons projects.
++ I Schedule 12000 StartNcmpcppGui
++ I Schedule  6000 StartPanelBar
++ I Schedule  7500 StartSystemMonitor
++ I Schedule  9000 StartProcesses
+
+##  The TV schedule for next week.
++ I Schedule 30000 FF-TVSchedule 
++ I Schedule 33000 DestroyStyle FF-TVSchedule
+
+##  Autostart the internet via eth0
++ I Exec exec urxvt -T ifup_eth0 -n ifup_eth0 -b 5 -fg snow \
+       -bg grey9 -fn terminus-bold-16 -fb terminus-bold-16 \
+       -e sudo /root/bin/sudo-ifup-eth0
+
+##  Notify if an xdg menu is not found.
++ I Schedule 14000 Test (!R $[FVWM_USERDIR]/.xdgmenu) \
+        FF-Notify 6 Nop "  Please rebuild  " "  the Main Menu  "
+
+##  Other apps to autostart.
++ I Schedule 16000 OpenTransmission
++ I Schedule 12000 OpenXErrors Xerrors
++ I Schedule 13000 OpenConsole FvwmConso1e
++ I Schedule 15000 Exec exec firefox 1>/dev/null 2>&1
+
+##  Every 60 seconds.
++ I Schedule Periodic 60000 1221 1minutes
+##  Every 5min.
++ I Schedule Periodic 300000 1222 5minutes
+
+##                                                              }}}3
+##   │ ├ShutdownFunc                                            {{{3
+
+DestroyFunc ShutdownFunc
+AddToFunc ShutdownFunc
+
+##  Send exit notification.
++ I DestroyModuleConfig FF-Notify: *
++ I *FF-Notify: Geometry -+20++20
++ I *FF-Notify: Font terminus-bold-16
++ I *FF-Notify: Line center
++ I *FF-Notify: Timeout 10 Nop "Closing down in %% seconds"
++ I Module FvwmForm FF-Notify
+
+##  Close windows and tombs
++ I KillModule ClipMenu
++ I Exec sed -ir '/^tumblr/d' $[HOME]/.cd_history 2>/dev/null
++ I Exec mpc pause
++ I All (!FvwmForm) ThisWindow Close 
++ I All ("FF-Confirm|FF-Okay") ThisWindow Close 
++ I Exec sudo tomb close
++ I Exec shred -u $[FVWM_LOG]/xsel/*
++ I Exec cp $[HOME]/.xsession-errors $[HOME]/.xsession-errors.last
+
+##  Run bleachbit after firefox has exited.
++ I Schedule 6000 Exec bleachbit --shred --clean \
+      firefox.backup firefox.cache flash.cookies flash.cache \
+      firefox.cookies firefox.crash_reports firefox.dom \
+      firefox.download_history firefox.forms firefox.passwords \
+      firefox.session_restore firefox.url_history 1>/dev/null 2>&1
+
+##  For tombs and windows that stubbornly refuse to close
++ I Schedule 6000 Exec sudo tomb slam
++ I Schedule 6000 All (!FvwmForm) Destroy
+
+##  Shutdown or reboot
++ I Schedule 10000 $[0-]
+
+##                                                              }}}3
+##   │ ├1minutes                                                {{{3
+
+##  Fvwm modules can terminate for reasons unknown. Restart any missing modules.
+DestroyFunc 1minutes
+AddToFunc 1minutes
++ I RestartModule UpdateSystemMonitor Module UpdateSystemMonitor
++ I RestartModule FvwmAnimate Module FvwmAnimate
++ I RestartModule UpdatePanelBar Module UpdatePanelBar
+
+##                                                              }}}3
+##   │ └5minutes                                                {{{3
+
+DestroyFunc 5minutes
+AddToFunc 5minutes
++ I KillModule UpdateProcesses
++ I Module UpdateProcesses
++ I Schedule 10000 KillModule Thumbnail
++ I Schedule 12000 Module Thumbnail
+
+##                                                              }}}3
+##   │                                                          }}}2
+##   ├WindowList Bindings                                       {{{2
+
+##  Alt + Tab  :  Switch focus to the next non-iconic window 
+Key Tab A M WindowList (CurrentDesk, AcceptsFocus, !Iconic) Root c c \
+  NoCurrentDeskTitle, NoGeometry, CurrentAtEnd, \
+  IconifiedAtEnd, MaxLabelWidth 60, SelectOnRelease Meta_L
+
+##  Shift + Alt + Tab  : Switch focus to the previous non-iconic window 
+Key Tab A SM WindowList (CurrentDesk, AcceptsFocus, !Iconic) Root c c \
+  NoCurrentDeskTitle, NoGeometry, CurrentAtEnd, ReverseOrder, \
+  IconifiedAtEnd, MaxLabelWidth 60, SelectOnRelease Meta_L
+
+##  Super + Tab  :  Switch focus and deiconify the next iconic window 
+Key Tab A 4 WindowList (CurrentDesk, Iconic) Root c c \
+  NoCurrentDeskTitle, NoGeometry, ReverseOrder, MaxLabelWidth 60, \
+  SelectOnRelease Super_L
+
+##  Shift + Super_L + Tab  :  Switch focus and deiconify the next iconic window 
+Key Tab A S4 WindowList (CurrentDesk, Iconic) Root c c \
+  NoCurrentDeskTitle, NoGeometry, MaxLabelWidth 60, \
+  SelectOnRelease Super_L
+
+##                                                              }}}2
+##   ├WindowListFunc                                            {{{2
+
+##  Used by the WindowList cmnd.Replaces the builtin function.
+DestroyFunc WindowListFunc
+AddToFunc WindowListFunc
++ I ThisWindow (Iconic) DeIconifyWindow 
++ I ThisWindow FlipFocus NoWarp
++ I ThisWindow Raise
++ I ThisWindow (FvwmButtons) WarpToWindow 30 30
+
+##   │                                                          }}}2
+##   ├Window-Functions                                          {{{2
+##   │ ├FullMaximize                                            {{{3
+
+##  Functions to maximize/unmaximize the current window.
+##  Used via the Alt+F10 and Alt+F11 keybindings.
+
+DestroyFunc FullMaximize
+AddToFunc FullMaximize
++ I SetEnv TEMP $[0]
++ I ThisWindow (Iconic) Break 1
++ I ThisWindow (Maximized) Break 1 
++ I ThisWindow (Shaded) Break 1
++ I IfTitled State 0 True
++ I IfNotTitled State 0 False
++ I IfBordered State 1 True
++ I IfNotBordered State 1 False 
++ I InfoStoreAdd x_$[w.id] $[w.x]
++ I InfoStoreAdd y_$[w.id] $[w.y]
++ I InfoStoreAdd width_$[w.id] $[w.width]
++ I InfoStoreAdd height_$[w.id] $[w.height]
++ I Test (EnvMatch TEMP animate) \
+        SendToModule FvwmAnimate animate \
+	$[w.x] $[w.y] $[w.width] $[w.height] \
+	0 0 $[vp.width] $[vp.height]
++ I WindowStyle !Title, !Borders
++ I UpdateStyles
++ I Maximize True 100 100
++ I UpdateStyles
++ I UnsetEnv TEMP 
+
+##                                                              }}}3
+##   │ ├UnMaximize                                              {{{3
+
+DestroyFunc UnMaximize
+AddToFunc UnMaximize
++ I SetEnv TEMP $[0]
++ I ThisWindow (Iconic) Break 1
++ I ThisWindow (Shaded) Break 1
++ I ThisWindow (!Maximized) Break 1 
++ I Test (EnvMatch TEMP animate) \
+        SendToModule FvwmAnimate animate \
+	0 0 $[vp.width] $[vp.height] \
+        $[infostore.x_$[w.id]] $[infostore.y_$[w.id]] \
+        $[infostore.width_$[w.id]] $[infostore.height_$[w.id]] 
++ I Maximize False
++ I ThisWindow (State 0) WindowStyle Title
++ I ThisWindow (!State 0) WindowStyle !Title
++ I ThisWindow (State 1) WindowStyle Borders
++ I ThisWindow (!State 1) WindowStyle !Borders
++ I UpdateStyles
++ I UnsetEnv TEMP 
+
+##                                                              }}}3
+##   │ ├ToggleMaximize                                          {{{3
+
+DestroyFunc ToggleMaximize
+AddToFunc ToggleMaximize
++ I ThisWindow (Iconic) Break 1
++ I ThisWindow (Shaded) Break 1
++ I ThisWindow ("mpv|Sxiv") Exec xdotool key --window $[w.id] f 1>/dev/null 2>&1
++ I ThisWindow ("mpv|Sxiv") Break 1
++ I ThisWindow (Maximized) Schedule 400 UnMaximize $[*]
++ I ThisWindow (!Maximized) Schedule 300 FullMaximize $[*]
+
+##                                                              }}}3
+##   │ ├IconifyWindow                                           {{{3
+
+##  Functions to iconify/deiconify the current window.
+##  Used via the F9 binding.
+
+DestroyFunc IconifyWindow
+AddToFunc IconifyWindow
++ I UnsetEnv THUMB
++ I ThisWindow (!Iconifiable) Break 1
++ I ThisWindow (Iconic) Break 1
++ I ThisWindow (Shaded) UnShadeWindow
++ I Test (R $[FVWM_THUMBS]/$[w.class].png) SetEnv THUMB $[FVWM_THUMBS]/$[w.class].png
++ I Test (R $[FVWM_THUMBS]/$[w.resource].png) SetEnv THUMB $[FVWM_THUMBS]/$[w.resource].png
++ I Test (R $[FVWM_THUMBS]/$[w.name].png) SetEnv THUMB $[FVWM_THUMBS]/$[w.name].png
++ I Test (R $[FVWM_THUMBS]/$[w.id].png) SetEnv THUMB $[FVWM_THUMBS]/$[w.id].png
++ I Test (!EnvIsSet THUMB) Break 1
++ I ThisWindow InfoStoreAdd layer_$[w.id] $[w.layer]
++ I ThisWindow Layer 0 $[infostore.bottomlayer]
++ I ThisWindow WindowStyle NeverFocus, Icon $[THUMB]
++ I UnsetEnv THUMB
++ I ThisWindow (!CurrentDesk) SendToModule FvwmAnimate pause
++ I ThisWindow Iconify True
++ I ThisWindow (!CurrentDesk) SendToModule FvwmAnimate play
+
+##                                                              }}}3
+##   │ ├DeIconifyWindow                                         {{{3
+
+DestroyFunc DeIconifyWindow
+AddToFunc DeIconifyWindow
++ I ThisWindow Layer 0 $[infostore.layer_$[w.id]]
++ I ThisWindow WindowStyle ClickToFocus
++ I ThisWindow (!CurrentDesk) SendToModule FvwmAnimate pause
++ I ThisWindow Iconify False
++ I ThisWindow (!CurrentDesk) SendToModule FvwmAnimate play
++ I ThisWindow FlipFocus NoWarp
++ I ThisWindow Raise
++ I ThisWindow (FvwmButtons) WarpToWindow 30 30
++ I All (CurrentDesk, Iconic) PlaceAgain Anim Icon
+
+##                                                              }}}3
+##   │ ├ShadeWindow                                             {{{3
+
+##  Functions to shade/unshade the current window.
+##  Used via the F7 binding.
+
+DestroyFunc ShadeWindow
+AddToFunc ShadeWindow
++ I ThisWindow (Maximized) Break 1
++ I ThisWindow (Iconic) Break 1
++ I ThisWindow IfTitled State 0 True
++ I ThisWindow IfNotTitled State 0 False
++ I ThisWindow IfBordered State 1 True
++ I ThisWindow IfNotBordered State 1 False 
++ I ThisWindow (!State 0) WindowStyle Title
++ I ThisWindow (!State 0) Move keep w-$[infostore.title_height]p ewmhiwa
++ I ThisWindow (!State 1) WindowStyle Borders
++ I UpdateStyles
++ I WindowShade True
++ I UpdateStyles
+
+##                                                              }}}3
+##   │ ├UnShadeWindow                                           {{{3
+
+DestroyFunc UnShadeWindow
+AddToFunc UnShadeWindow
++ I WindowShade False
++ I UpdateStyles
++ I ThisWindow (!State 0) WindowStyle !Title
++ I ThisWindow (!State 0) Move keep w+$[infostore.title_height]p ewmhiwa
++ I ThisWindow (!State 1) WindowStyle !Borders
++ I UpdateStyles
+
+##                                                              }}}3
+##   │ ├ToggleShade                                             {{{3
+
+DestroyFunc ToggleShade
+AddToFunc ToggleShade
++ I ThisWindow (Iconic) Break 1
++ I ThisWindow (Maximized) Break 1
++ I ThisWindow (Shaded) Schedule 300 UnShadeWindow
++ I ThisWindow (!Shaded) Schedule 300 ShadeWindow
+
+##                                                              }}}3
+##   │ ├ResizeWindow                                            {{{3
+
+##  Interactively resize the window. Used via the Alt+Super+Arrow binding.
+DestroyFunc ResizeWindow
+AddToFunc ResizeWindow
++ I ThisWindow (Iconic) Break 1
++ I ThisWindow (FixedSize) Break 1
++ I ThisWindow (Maximized) Break 1
++ I ThisWindow (Shaded) Break 1
++ I WarpToWindow 50 50
++ I CursorStyle RESIZE $[1]
++ I Schedule 200 Resize direction $[0] warptoborder
++ I Schedule 200 WarpToWindow 50 50
+
+##                                                              }}}3
+##   │ ├ShowTitle                                               {{{3
+
+DestroyFunc ShowTitle
+AddToFunc ShowTitle
++ I ThisWindow (Maximized) Break 1
++ I IfTitled Break 1
++ I DestroyFunc TempFunc
++ I AddToFunc TempFunc I WindowStyle Title
++ I AddToFunc TempFunc I Move keep w-$[infostore.title_height]p ewmhiwa
++ I AddToFunc TempFunc I Schedule 300 DestroyFunc TempFunc
++ I Schedule 300 TempFunc
+
+##                                                              }}}3
+##   │ ├HideTitle                                               {{{3
+
+DestroyFunc HideTitle
+AddToFunc HideTitle
++ I ThisWindow (Maximized) Break 1
++ I IfNotTitled Break 1
++ I DestroyFunc TempFunc
++ I AddToFunc TempFunc I WindowStyle !Title
++ I AddToFunc TempFunc I Move keep w+$[infostore.title_height]p ewmhiwa
++ I AddToFunc TempFunc I Schedule 300 DestroyFunc TempFunc
++ I Schedule 300 TempFunc
+
+##                                                              }}}3
+##   │ ├ToggleTitle                                             {{{3
+
+DestroyFunc ToggleTitle
+AddToFunc ToggleTitle
++ I ThisWindow (Maximized) Break 1
++ I ThisWindow (Maximized) Break 1
++ I IfNotTitled Schedule 150 ShowTitle 
++ I IfTitled Schedule 150 HideTitle
+
+##                                                              }}}3
+##   │ ├SetWindowBorders                                        {{{3
+
+DestroyFunc SetWindowBorders
+AddToFunc SetWindowBorders
++ I SetEnv TEMP $[0]
++ I Test (EnvMatch TEMP yes) WindowStyle Borders, Handles
++ I Test (EnvMatch TEMP no)  WindowStyle !Borders, !Handles
++ I UnsetEnv TEMP
+
+##                                                              }}}3
+##   │ ├SendWindowTo                                            {{{3
+
+##  Functions that move current window to another desktop.
+##  State 10 True sets priority focus for any window being moved.
+
+##  Switch to next/prev desktop, together with the current window.
+DestroyFunc SendWindowTo
+AddToFunc SendWindowTo
++ I MoveToDesk $[0] $[infostore.desk_min] $[infostore.desk_max]
++ I ThisWindow State 10 True
++ I GotoDesk $[0] $[infostore.desk_min] $[infostore.desk_max]
+
+##                                                              }}}3
+##   │ ├MoveWindowToDesk                                        {{{3
+
+##  Move window to desktop $[0]. 
+DestroyFunc MoveWindowToDesk
+AddToFunc MoveWindowToDesk
++ I ThisWindow State 10 True
++ I MoveToDesk 0 $[0]
++ I Schedule 1000 RestoreFocus
+
+##                                                              }}}3
+##   │ ├RestoreFocus                                            {{{3
+
+##  If focus is lost, refocus the next eligible window.
+##  Used via the FvwmEvent module.
+DestroyFunc RestoreFocus
+AddToFunc RestoreFocus
++ I Next (CurrentDesk, Focused, !Iconic) Break 1
++ I Prev (AcceptsFocus, CurrentDesk, !Iconic) WindowListFunc
+
+##  Changed Next to Prev for reasons unknonw, just to make it work better?
+
+##                                                              }}}3
+##   │ ├DragMove                                                {{{3
+
+##  Drag-move the current window with the mouse.
+DestroyFunc DragMove
+AddToFunc DragMove 
++ M Move
+
+##                                                              }}}3
+##   │ └UseStyleWindow                                          {{{3
+
+##  Choose a preset window styles for the current window
+DestroyFunc UseStyleWindow
+AddToFunc UseStyleWindow
++ I WindowStyle UseStyle $[0]
++ I RecaptureWindow
++ I Schedule 300 RestoreFocus
+
+##                                                              }}}3
+##   │                                                          }}}2
+##   ├Inline-functions                                          {{{2
+##   │ ├IfTitled                                                {{{3
+
+##  Inline functions must be used with care due to unintended word-splitting.
+
+##  4 functions that run dependent on the window being titled/bordered.
+##  Only valid when the current window is !Iconic, !Maximized, !Shaded
+
+DestroyFunc IfTitled
+AddToFunc IfTitled I ThisWindow (!Maximized) PipeRead ' \
+    zz=$(( $[w.width]  - $[cw.width]  )) ; \
+    uu=$(( $[w.height] - $[cw.height] )) ; \
+    [ $zz -ne $uu ] && echo "$[*]" ;'
+
+##                                                              }}}3
+##   │ ├IfNotTitled                                             {{{3
+
+DestroyFunc IfNotTitled
+AddToFunc IfNotTitled I ThisWindow (!Maximized) PipeRead ' \
+    zz=$(( $[w.width]  - $[cw.width]  )) ; \
+    uu=$(( $[w.height] - $[cw.height] )) ; \
+    [ $zz -eq $uu ] && echo "$[*]" ;'
+
+##                                                              }}}3
+##   │ ├IfBordered                                              {{{3
+
+DestroyFunc IfBordered
+AddToFunc IfBordered I ThisWindow (!Maximized) PipeRead ' \
+    zz=$(( $[w.width]  - $[cw.width]  )) ; \
+    uu=$(( $[w.height] - $[cw.height] )) ; \
+    [ $zz -ne 0 -a $uu -ne 0 ] && echo "$[*]" ;'
+
+##                                                              }}}3
+##   │ ├IfNotBordered                                           {{{3
+
+DestroyFunc IfNotBordered
+AddToFunc IfNotBordered I ThisWindow (!Maximized) PipeRead ' \
+    zz=$(( $[w.width]  - $[cw.width]  )) ; \
+    uu=$(( $[w.height] - $[cw.height] )) ; \
+    [ $zz -eq 0 -o $uu -eq 0 ] &&  echo "$[*]" ;'
+
+##                                                              }}}3
+##   │ ├IfDoubleClick                                           {{{3
+
+##  3 inline functions that may run dependent on a certain mouse action.
+
+DestroyFunc IfDoubleClick
+AddToFunc IfDoubleClick D $[*]
+
+##                                                              }}}3
+##   │ ├IfHoldOrDoubleClick                                     {{{3
+
+DestroyFunc IfHoldOrDoubleClick
+AddToFunc IfHoldOrDoubleClick
++ H $[*]
++ D $[*]
+
+##                                                              }}}3
+##   │ └IfHoldOrSingleClick                                     {{{3
+
+DestroyFunc IfHoldOrSingleClick
+AddToFunc IfHoldOrSingleClick
++ H $[*]
++ C $[*]
+
+##                                                              }}}3
+##   │                                                          }}}2
+##   ├ClipMenu-related                                          {{{2
+##   │ ├OpenFirefoxTab                                          {{{3
+
+DestroyFunc OpenFirefoxTab
+AddToFunc OpenFirefoxTab
++ I None (*irefox*) FF-Notify 4 Nop "No Firefox window open"
++ I None (*irefox*) Break
++ I SetEnv TEMP no
++ I PipeRead '[ -n "$[0]" ] && echo "SetEnv TEMP yes" || echo Nop ; '
++ I Test (EnvMatch TEMP no) Exec exec firefox \
+      "$(xsel -ob|head -1)" 1>/dev/null 2>&1
++ I Test (EnvMatch TEMP yes) Exec exec firefox "$[0]" 1>/dev/null 2>&1
++ I UnsetEnv TEMP
+
+##                                                              }}}3
+##   │ ├OpenFirefoxWindow                                       {{{3
+
+DestroyFunc OpenFirefoxWindow
+AddToFunc OpenFirefoxWindow
++ I SetEnv TEMP no
++ I PipeRead '[ -n "$[0]" ] && echo "SetEnv TEMP yes" || echo Nop ; '
++ I Test (EnvMatch TEMP no) Exec exec firefox -new-window \
+      "$(xsel -ob|head -1)" 1>/dev/null 2>&1
++ I Test (EnvMatch TEMP yes) Exec exec firefox -new-window "$[0]" 1>/dev/null 2>&1
++ I UnsetEnv TEMP
+
+##                                                              }}}3
+##   │ ├OpenFirefoxWindowAlt                                    {{{3
+
+DestroyFunc OpenFirefoxWindowAlt
+AddToFunc OpenFirefoxWindowAlt
++ I SetEnv TEMP no
++ I PipeRead '[ -n "$[0]" ] && echo "SetEnv TEMP yes" || echo Nop ; '
++ I Test (EnvMatch TEMP no) Exec exec firefox \
+      -P plusjs "$(xsel -ob|head -1)" 1>/dev/null 2>&1
++ I Test (EnvMatch TEMP yes) Exec exec firefox  \
+      -P plusjs "$[0]" 1>/dev/null 2>&1
++ I UnsetEnv TEMP
+
+##                                                              }}}3
+##   │ ├OpenW3m                                                 {{{3 
+
+DestroyFunc OpenW3m
+AddToFunc OpenW3m I Exec exec xterm  \
+   -T w3m -n w3m -fa DejaVuSansMono -fs 12 -b 8 \
+   -e w3m "$(xsel -ob|head -1)"
+
+##                                                              }}}3
+##   │ ├OpenDillo                                               {{{3
+
+DestroyFunc OpenDillo
+AddToFunc OpenDillo I Exec exec dillo \
+  "$(xsel -ob|head -1)" 1>/dev/null 2>&1 
+
+##                                                              }}}3
+##   │ ├MPVPlayVideo                                            {{{3
+
+DestroyFunc MPVPlayVideo
+AddToFunc MPVPlayVideo
++ I SetEnv TEMP no
++ I PipeRead '[ -n "$[0]" ] && echo "SetEnv TEMP yes" || echo Nop ; '
++ I Test (EnvMatch TEMP yes) Exec \
+      mpv --quiet --ytdl --no-terminal  \
+      --ytdl-format='135+141/244+141/18/43/134+172/243+172/5/36' \
+      "$[0]" 1>/dev/null 2>&1 || \
+      FvwmCommand "FF-Notify 3 Nop \"MPV abort.\""
++ I Test (EnvMatch TEMP no) Exec \
+      mpv --quiet --ytdl --no-terminal  \
+      --ytdl-format='135+141/244+141/18/43/134+172/243+172/5/36' \
+      "$(xsel -ob|head -1)" 1>/dev/null 2>&1 || \
+      FvwmCommand "FF-Notify 3 Nop \"MPV abort.\""
++ I UnsetEnv TEMP 
+
+##                                                              }}}3
+##   │ ├MPVPlayAudioOnly                                        {{{3
+
+DestroyFunc MPVPlayAudioOnly
+AddToFunc MPVPlayAudioOnly
++ I SetEnv TEMP no
++ I PipeRead '[ -n "$[0]" ] && echo "SetEnv TEMP yes" || echo Nop ; '
++ I Test (EnvMatch TEMP yes) Exec \
+      mpv --quiet --ytdl --no-terminal --no-video \
+      --ytdl-format='135+141/244+141/18/43/134+172/243+172/5/36' \
+      "$[0]" 1>/dev/null 2>&1 || \
+      FvwmCommand "FF-Notify 3 Nop \"MPV abort.\""
++ I Test (EnvMatch TEMP no) Exec \
+      mpv --quiet --ytdl --no-terminal --no-video \
+      --ytdl-format='135+141/244+141/18/43/134+172/243+172/5/36' \
+      "$(xsel -ob|head -1)" 1>/dev/null 2>&1 || \
+      FvwmCommand "FF-Notify 3 Nop \"MPV abort.\""
++ I UnsetEnv TEMP 
+
+##                                                              }}}3
+##   │ ├IdentifyVideo                                           {{{3
+
+DestroyFunc IdentifyVideo
+AddToFunc IdentifyVideo I Exec $FVWM_USERDIR/bin/mpv_identify.sh \
+  "$(xsel -ob|head -1)" >/tmp/mpvinfo \
+  && exec urxvt -b 8 -T "Mpv Identify" -n "Mpv Identify" \
+  -fn terminus-bold-16 -e less -S /tmp/mpvinfo
+
+##                                                              }}}3
+##   │ ├PlayLivestreamer                                        {{{3
+
+DestroyFunc PlayLivestreamer
+AddToFunc PlayLivestreamer
++ I SetEnv QUAL best
++ I -PipeRead ' \
+      url="$(xsel -ob | head -1)" ; \
+      echo "$url" | grep -q youtu && echo "SetEnv QUAL 480p" ; ' 
++ I -Exec livestreamer -p "mpv --cache=8192"  \
+       "$(xsel -ob | head -1)" $QUAL 1>/dev/null 2>&1 || \
+       FvwmCommand "FF-Notify 3 Nop \"Livestreamer abort.\""
++ I UnsetEnv QUAL
+
+##                                                              }}}3
+##   │ ├OpenFeh                                                 {{{3
+
+##  If $[0] exists, it is opened as an image file. Elsewise, 
+##  if the clipboard stores an image url, then feh will open it.
+DestroyFunc OpenFeh
+AddToFunc OpenFeh
++ I SetEnv TEMP no
++ I PipeRead '[ -n "$[0]" ] && echo "SetEnv TEMP yes" || echo Nop ; '
++ I Test (EnvMatch TEMP yes) Exec feh -Z "$[0]" 1>/dev/null 2>&1 || \
+       FvwmCommand "FF-Notify 3 Nop \"Image not found.\""
++ I Test (EnvMatch TEMP no) Exec \
+      file="/tmp/$(date +%s))" && \
+      wget -q "$(xsel -ob|head -1)" -O $file 1>/dev/null 2>&1 && \
+      feh -Z $file || \
+      FvwmCommand "FF-Notify 2 Nop \"Image not found.\""
++ I UnsetEnv TEMP
+
+##                                                              }}}3
+##   │ ├OpenSxiv                                                {{{3
+
+##  If $[0] exists, it is opened as an image file. Elsewise, 
+##  if the clipboard stores an image url, then sxiv will open it.
+
+DestroyFunc OpenSxiv
+AddToFunc OpenSxiv
++ I SetEnv TEMP no
++ I PipeRead '[ -n "$[0]" ] && echo "SetEnv TEMP yes" || echo Nop ; '
++ I Test (EnvMatch TEMP yes) SetEnv SXIVFILE $[0]
++ I Test (EnvMatch TEMP yes) Exec sxiv -b -sf -a $[SXIVFILE] || \
+        FvwmCommand "FF-Notify 2 Nop \"Image not found.\""
++ I Test (EnvMatch TEMP no) PipeRead 'echo "SetEnv SXIVFILE /tmp/`date +%s`" ; '
++ I Test (EnvMatch TEMP no) Exec \
+      wget -q "$(xsel -ob|head -1)" -O $[SXIVFILE] 1>/dev/null 2>&1 \
+      && sxiv -b -sf -a $[SXIVFILE] \
+      || FvwmCommand "FF-Notify 2 Nop \"Image not found.\""
++ I Schedule 15000 UnsetEnv SXIVFILE
++ I UnsetEnv TEMP
+
+##                                                              }}}3
+##   │ ├ResizeSxiv                                              {{{3
+
+##  This function resizes new sxiv to perfectly fit the image.
+##  sxiv_size gives max width/height of sxiv as a percent of screen.
+##  Invoked via the InitialMapCommand style.
+
+DestroyFunc ResizeSxiv
+AddToFunc ResizeSxiv
++ I Echo Starting ResizeSxiv
++ I Test (EnvIsSet SXIVFILE) PipeRead ' \
+    j="`identify $[SXIVFILE] | sed -n 1p`" ; \
+    echo "Echo $j" ; '
++ I Test (EnvIsSet SXIVFILE) PipeRead ' \
+    j="`identify $[SXIVFILE] | cut -d\' \' -f3`" ; \
+    k=$((${j##*x}*$[vp.width])) ; \
+    l=$((${j%%x*}*$[vp.height])) ; \
+    if [ $k -gt $l ] ; then \
+        k=$(($[vp.height]*$[infostore.sxiv_size]/100)) ; \
+        l=$((${j%%x*}*$k/${j##*x})) ; \
+    else \
+        l=$(($[vp.width]*$[infostore.sxiv_size]/100)) ; \
+        k=$((${j##*x}*$l/${j%%x*})) ; \
+    fi ; \
+    echo "ResizeMove  ${l}p ${k}p 50-50w 50-50w" ; ' 
++ I UnsetEnv SXIVFILE
+
+InfoStoreAdd sxiv_size 80
+
+##                                                              }}}3
+##   │ ├AddYtdl                                                 {{{3
+
+DestroyFunc AddYtdl
+AddToFunc AddYtdl 
++ I Exec echo "$(xsel -ob|head -1)" >> $[infostore.ytdl_list]
+
+##                                                              }}}3
+##   │ ├AddTorrent                                              {{{3
+
+DestroyFunc AddTorrent
+AddToFunc AddTorrent
++ I DestroyFunc TempFunc
++ I AddToFunc TempFunc I Exec transmission-remote -a "`xsel -ob | head -1`" 
++ I AddToFunc TempFunc I Schedule 1000 DestroyFunc TempFunc
++ I FF-Confirm "Add\ Torrent" TempFunc
+
+##                                                              }}}3
+##   │ └AddHosts                                                {{{3
+
+##  Bans a domain by adding it to the HOSTS file. 
+##  Acts on the url found on the system clipboard.
+
+DestroyFunc AddHosts
+AddToFunc AddHosts I Exec exec sudo /root/bin/addtohosts
+
+##                                                              }}}3
+##   │                                                          }}}2
+##   ├AppMenu-related                                           {{{2
+##   │ ├BrowsePirateBay                                         {{{3  
+
+##  Opens selected thepiratebay webpages
+
+DestroyFunc BrowsePirateBay
+AddToFunc BrowsePirateBay
++ I FF-Notify 4 Nop "Please wait..."
++ I Next (ThePirateBay, CirculateHit) FlipFocus
++ I TestRc (Match) Break
++ I Exec sleep 2 &&  exec urxvt -n "ThePirateBay" -T "ThePirateBay" \
+   -fn $[infostore.dejavu16bold] -fb $[infostore.dejavu16bold] -b 8 \
+   -e $[FVWM_USERDIR]/bin/tmux-thepiratebay
+
+##                                                              }}}3
+##   │ ├BrowseForums                                            {{{3
+
+##  Opens selected linux forum webpages
+DestroyFunc BrowseForums
+AddToFunc BrowseForums
++ I Exec sleep 1 && exec dillo \
+    'https://katcr.co/community/' \
+    'https://forums.bunsenlabs.org/viewforum.php?id=9' \
+    'https://bbs.archlinux.org/viewforum.php?id=27' \
+    'https://www.reddit.com/r/torrents/new/' \
+    'https://www.reddit.com/r/unixporn/new/' \
+    'https://www.reddit.com/r/vim/new/' \
+    'http://apod.nasa.gov/apod/' \
+    1>/dev/null 2>&1
+
+##                                                              }}}3
+##   │ ├BrowseLinuxBBQ                                          {{{3
+
+##  Opens selected linux forum webpages
+DestroyFunc BrowseLinuxBBQ
+AddToFunc BrowseLinuxBBQ
++ I Exec echo -n "xxxxxxxxxxxxxxxxxxxx" | xsel -ib
++ I Schedule 1500 Exec echo -n "daggoth" | xsel -ib
++ I Exec sleep 1 && exec dillo \
+    'http://linuxbbq.org/bbs/ucp.php?mode=login&sid=b88a8ada6b8806aa1171420294ac8a2a' \
+    1>/dev/null 2>&1
+
+##                                                              }}}3
+##   │ ├BrowseTorrentz                                          {{{3
+
+##  Opens selected webpages related to tv and p2p.
+DestroyFunc BrowseTorrentz
+AddToFunc BrowseTorrentz
++ I Exec sleep 1 && exec dillo \
+    'http://1337x.to/cat/TV/0/' \
+    'http://extratorrent.cc/view/popular/TV.html' \
+    'http://glodls.to/browse.php?parent_cat=TV' \
+    'http://1337x.to/user/ETTV/' \
+    'http://1337x.to/user/SRIGGA/' \
+    'http://1337x.to/user/EZZT/' \
+    'http://1337x.to/user/showstopper/' \
+    'http://1337x.to/user/stateofmind/' \
+    'http://1337x.to/user/ElsonRoa/' \
+    'http://extratorrent.cc/profile/Bullrout/torrents/' \
+    'http://extratorrent.cc/profile/RedBaron58/torrents/' \
+    'http://sharetv.com/listings' \
+    1>/dev/null 2>&1
+
+#    'http://1337x.to/user/brasseur0ph/' \          ##DORMANT
+#    'http://extratorrent.cc/profile/ElsonRoa/torrents/' \
+#    'http://extratorrent.cc/category/58/Classic+Torrents.html' \
+#    'http://extratorrent.cc/profile/brasseur0ph/torrents/' \
+#    'https://www.torrentfunk.com/tv/recent.html' \
+#    'https://www.limetorrents.cc/browse-torrents/TV-shows/' \
+
+##                                                              }}}3
+##   │ ├OpenFeeds                                               {{{3
+
+##  Lockfile for newsbeuter.
+InfoStoreAdd nb_lock $[HOME]/.newsbeuter/cache.db.lock
+
+DestroyFunc OpenFeeds
+AddToFunc OpenFeeds
++ I Test (F $[infostore.nb_lock]) FF-Notify \
+      4 Nop "Fail: Newsbeuter locked"
++ I Test (!F $[infostore.nb_lock]) Exec exec urxvt \
+      -fn $[infostore.dejavu18bold] -fb $[infostore.dejavu18bold] \
+      -T Newsbeuter -n Newsbeuter -e $[HOME]/bin/nb
+
+##                                                              }}}3
+##   │ ├OpenTransmission                                        {{{3
+
+DestroyFunc OpenTransmission
+AddToFunc OpenTransmission
++ I Exec pkill -f 'urxvt.*transmission-remote-cli'
++ I Schedule 2000 Exec exec urxvt -T Transmission -n Transmission \
+   -fn tamsyn20bold -fb tamsyn20bold -g 100x30 -bg gray9 -fg gray60 -e sh -c \
+    "addcolor </tmp/fvwm/trcli.colors && exec transmission-remote-cli"
++ I Schedule 6000 DestroyStyle Transmission   
+
+##                                                              }}}3
+##   │ ├UpdateFeeds                                             {{{3
+
+DestroyFunc UpdateFeeds
+AddToFunc UpdateFeeds
++ I Test (F $[infostore.nb_lock]) FF-Notify \
+      4 Nop "Fail: Newsbeuter locked"
++ I Test (!F $[infostore.nb_lock]) Exec exec urxvt \
+      -fn $[infostore.dejavu18bold] -fb $[infostore.dejavu18bold] \
+      -T Newsbeuter -n Newsbeuter -e $[HOME]/bin/nbupdate
+
+##                                                              }}}3
+##   │ └OpenVim                                                 {{{3
+
+##  A launcher function for vim. 
+DestroyFunc OpenVim
+AddToFunc OpenVim I Exec exec urxvt -T Vim -n Vim -bg gray9 \
+  -fn $[infostore.dejavu18bold] -fb $[infostore.dejavu18bold] \
+  -e vim -p $[*]
+
+##                                                              }}}3
+##   │                                                          }}}2
+##   ├MountMenu-related                                         {{{2
+##   │ ├Pmount                                                  {{{3
+
+##  Helper functions to mount/umount LUKS tombs and USB-drives.
+
+DestroyFunc PMount
+AddToFunc Pmount
++ I SetEnv TEMP yes
++ I PipeRead '[ -z "$[1]" ] && echo "SetEnv TEMP no"'
++ I Test (EnvMatch TEMP no) Exec pmount "$[0]"
++ I Test (EnvMatch TEMP yes) Exec pmount "$[0]" "$[1]"
++ I Test (EnvMatch TEMP no) Schedule 3000 PMountNotify "$[0]"
++ I Test (EnvMatch TEMP yes) Schedule 3000 PMountNotify "$[0]" "$[1]"
++ I UnsetEnv TEMP
+
+##                                                              }}}3
+##   │ ├PMountNotify                                            {{{3
+
+DestroyFunc PMountNotify
+AddToFunc PMountNotify 
++ I SetEnv TEMP yes
++ I PipeRead '[ -z "$[1]" ] && echo "SetEnv TEMP no"'
++ I Test (EnvMatch TEMP no) PipeRead ' b="$[0]" ; \
+      lsblk -lno NAME,MOUNTPOINT | grep "^${b##*/} " | grep -q "/media" && \
+        echo "FF-Notify 3 Nop \\"Mounted: /media/${b##*/}\\"" || \
+        echo "FF-Notify 3 Nop \\"Mount failed: /dev/${b##*/}\\"" '
++ I Test (EnvMatch TEMP yes) PipeRead ' b="$[0]" ; j="$[1]" ; \
+      lsblk -lno NAME,MOUNTPOINT | grep "^${b##*/} " | grep -q "/media" && \
+        echo "FF-Notify 3 Nop \\"Mounted: /media/$j\\"" || \
+        echo "FF-Notify 3 Nop \\"Mount failed: /dev/${b##*/}\\"" '
++ I UnsetEnv TEMP
+
+##                                                              }}}3
+##   │ ├Pumount                                                 {{{3
+
+DestroyFunc PUmount
+AddToFunc Pumount
++ I Exec pumount "$[0]" 
++ I Schedule 1000 PipeRead ' b="$[0]" ; \
+      lsblk -lno NAME,MOUNTPOINT | grep "^${b##*/} " | grep -q "/media" && \
+      echo "FF-Notify 3 Nop \\"Umount failed: $b\\"" || \
+      echo "FF-Notify 3 Nop \\"$b umounted\\""'
+
+##                                                              }}}3
+##   │ ├TombMount                                               {{{3
+
+DestroyFunc TombMount
+AddToFunc TombMount 
++ I PipeRead ' \
+    kk="`echo $[0] | sed -r \'s|^.+/|| ; s/[.].+//\'`" ; \
+    echo "SetEnv TOMB $kk" '
++ I Exec exec urxvt -b 8 -T "Tomb Mount" -n "Tomb Mount" -e \
+    sh -c " tomb open \"$[0]\" -k \"$[1]\" -f && \
+    FvwmCommand \"FF-Notify 3 Nop \\\"Tomb Mount : $TOMB\\\" \" || \
+    FvwmCommand \"FF-Notify 3 Nop \\\"Tomb Mount $TOMB : FAIL\\\" \" "
++ I UnsetEnv TOMB
+
+##                                                              }}}3
+##   │ ├TombUmount                                              {{{3
+
+DestroyFunc TombUmount
+AddToFunc TombUmount 
++ I PipeRead ' \
+    kk="`echo $[0] | sed -r \'s|^.+/|| ; s/[.].+//\'`" ; \
+    echo "SetEnv TOMB $kk" '
++ I Exec sudo tomb close "$[0]" 1>/dev/null 2>&1 && \
+    FvwmCommand "FF-Notify 3 Nop \"Tomb Umount : $TOMB\" " || \
+    FvwmCommand "FF-Notify 3 Nop \"Tomb Umount $TOMB : FAIL\" " 
++ I UnsetEnv TOMB
+
+##                                                              }}}3
+##   │ └TombSlam                                                {{{3
+
+DestroyFunc TombSlam
+AddToFunc TombSlam I Exec sudo tomb slam 
+
+##                                                              }}}3
+##   │                                                          }}}2
+##   ├Scrot-Helpers                                             {{{2
+##   │ ├ScrotWindow                                             {{{3
+
+##  5 functions that take different types of sreenshot.
+
+DestroyFunc ScrotWindow
+AddToFunc ScrotWindow 
++ I -Exec \
+       scrot -u '%Y%m%d%s_$wx$h.png' -e \
+       'mv $f ~/images/ ; \
+       echo ~/images/$f >/tmp/lastscrot' ; \
+       xsel -ib </tmp/lastscrot ; \
+       feh -Z "$(cat /tmp/lastscrot)"
+
+##                                                              }}}3
+##   │ ├ScrotNow                                                {{{3
+
+DestroyFunc ScrotNow
+AddToFunc ScrotNow I -Exec \
+    scrot -d 1 '%Y%m%d%s_$wx$h.png' -e \
+    'mv $f ~/images/ ; \
+    echo ~/images/$f >/tmp/lastscrot' ; \
+    xsel -ib </tmp/lastscrot ; \
+    feh -Z "$(cat /tmp/lastscrot)"
+
+##                                                              }}}3
+##   │ ├Scrot5sec                                               {{{3
+
+DestroyFunc Scrot5sec
+AddToFunc Scrot5sec I -Exec \
+    scrot -d 5 '%Y%m%d%s_$wx$h.png' -e \
+    'mv $f ~/images/ ; \
+    echo ~/images/$f >/tmp/lastscrot' ; \
+    xsel -ib </tmp/lastscrot ; \
+    feh -Z "$(cat /tmp/lastscrot)"
+
+##                                                              }}}3
+##   │ ├Scrot10sec                                              {{{3
+
+DestroyFunc Scrot10sec
+AddToFunc Scrot10sec I -Exec \
+    scrot -d 10 '%Y%m%d%s_$wx$h.png' -e \
+    'mv $f ~/images/ ; \
+    echo ~/images/$f >/tmp/lastscrot' ; \
+    xsel -ib </tmp/lastscrot ; \
+    feh -Z "$(cat /tmp/lastscrot)"
+
+##                                                              }}}3
+##   │ └ScrotSel                                                {{{3
+
+DestroyFunc ScrotSel
+AddToFunc ScrotSel I -Exec \
+    scrot -s '%Y%m%d%s_$wx$h.png' -e \
+    'mv $f ~/images/ ; \
+    echo ~/images/$f >/tmp/lastscrot' ; \
+    xsel -ib </tmp/lastscrot ; \
+    feh -Z "$(cat /tmp/lastscrot)"
+
+##                                                              }}}3
+##   │                                                          }}}2
+##   ├FvwmForm-Helpers                                          {{{2
+##   │ ├FF-Notify                                               {{{3
+
+##  2 helper function that use FvwmForm for notifications and 
+##  to ask yes/no questions.
+
+DestroyFunc FF-Notify
+AddToFunc FF-Notify 
++ I DestroyModuleConfig FF-Notify: *
++ I *FF-Notify: Geometry -+20++20
++ I *FF-Notify: Font terminus-bold-16
++ I PipeRead ' \
+  start=0 ; for msg in $* ; do \
+    if [ "$start" -gt "1" ] ; then \
+       echo "*FF-Notify: Line center" ; \
+       echo "*FF-Notify: Text \\"$msg\\"" ; \
+    fi; \
+  start=$(($start+1)) ; done ; '
++ I *FF-Notify: Timeout $0 $1 ""
++ I KillModule FvwmForm FF-Notify
++ I Module FvwmForm FF-Notify
+
+##                                                              }}}3
+##   │ ├FF-TvSchedule                                           {{{3
+
+DestroyFunc FF-TVSchedule
+AddToFunc FF-TVSchedule
++ I DestroyModuleConfig FF-TVSchedule: *
++ I *FF-TVSchedule: Font terminus-bold-16
++ I *FF-TVSchedule: ButtonFont terminus-bold-16
++ I *FF-TVSchedule: Title "TV Schedule"
++ I *FF-TVSchedule: Line Center
++ I *FF-TVSchedule: Line Center
++ I -PipeRead ' \
+    pal -c 0 -r 7 -p $HOME/.pal/torrents.pal | uncolor | \
+    awk \'{ gsub(/[*]/," *") ; \
+            print "*FF-TVSchedule: Line left" ; \
+            print "*FF-TVSchedule: Text \\\"  "$0"  \\\""} \' '
++ I *FF-TVSchedule: Line Center
++ I *FF-TVSchedule: Button quit " OK " ^Y
++ I KillModule FvwmForm FF-TVSchedule
++ I Module FvwmForm FF-TVSchedule
+
+##                                                              }}}3
+##   │ ├FF-Confirm                                              {{{3
+
+DestroyFunc FF-Confirm
+AddToFunc FF-Confirm
++ I DestroyModuleConfig FF-Confirm: *
++ I *FF-Confirm: Font terminus-bold-16
++ I *FF-Confirm: ButtonFont terminus-bold-16
++ I *FF-Confirm: Title "$[0]"
++ I *FF-Confirm: Text "   "
++ I *FF-Confirm: Button quit " Yes " ^Y
++ I *FF-Confirm: Command $[1-]
++ I *FF-Confirm: Text "  "
++ I *FF-Confirm: Button quit " No " ^N
++ I *FF-Confirm: Text "   "
++ I KillModule FvwmForm FF-Confirm 
++ I Module FvwmForm FF-Confirm 
+
+##                                                              }}}3
+##   │ └FF-Okay                                                 {{{3
+
+DestroyFunc FF-Okay
+AddToFunc FF-Okay
++ I DestroyModuleConfig FF-Okay: *
++ I *FF-Okay: Font terminus-bold-16
++ I *FF-Okay: ButtonFont terminus-bold-16
++ I *FF-Okay: Title "$[0]"
++ I *FF-Okay: Text "        "
++ I *FF-Okay: Button quit " Ok " ^Y
++ I *FF-Okay: Text "        "
++ I KillModule FvwmForm FF-Okay 
++ I Module FvwmForm FF-Okay 
+
+##                                                              }}}3
+##   │                                                          }}}2
+##   ├DesktopMenu-related                                       {{{2
+##   │ ├OpenConsole                                             {{{3
+
+##  3 debug related launcher functions.
+
+DestroyFunc OpenConsole
+AddToFunc OpenConsole
++ I SetEnv TEMP no
++ I PipeRead '[ -n "$[0]" ] && echo "SetEnv TEMP yes" || echo Nop ; '
++ I Test (EnvMatch TEMP no) Module FvwmConsole -terminal urxvt \
+      -T FvwmConsole -n FvwmConsole -bg grey9 -fg snow3 -b 8 \
+      -fn terminus-bold-16 -fb terminus-bold-16
++ I Test (EnvMatch TEMP yes) Module FvwmConsole -terminal urxvt \
+      -T "$[0]" -n "$[0]" -bg grey9 -fg snow3 -b 8 \
+      -fn terminus-bold-16 -fb terminus-bold-16
++ I UnsetEnv TEMP
+
+##                                                              }}}3
+##   │ ├OpenPsmem                                               {{{3
+
+DestroyFunc OpenPsmem
+AddToFunc OpenPsmem I Exec exec urxvt -b 5 -n "Psmem" \
+  -T "Psmem" -e sh -c "sudo /root/bin/psmem | less -RS "
+
+##                                                              }}}3
+##   │ ├OpenXErrors                                             {{{3
+
+DestroyFunc OpenXErrors
+AddToFunc OpenXErrors
++ I SetEnv TEMP no
++ I PipeRead '[ -n "$[0]" ] && echo "SetEnv TEMP yes" || echo Nop ; '
++ I Test (EnvMatch TEMP no) Exec exec urxvt \
+      -n "tail -f ~/.xsession_errors" -T "tail -f ~/.xsession_errors" \
+      -b 8 -fn terminus-bold-16 -fb terminus-bold-16 \
+      -e tail -f $[HOME]/.xsession-errors
++ I Test (EnvMatch TEMP yes) Exec exec urxvt -T "$[0]" -n "$[0]" \
+      -b 8 -fn terminus-bold-16 -fb terminus-bold-16 \
+      -e tail -f $[HOME]/.xsession-errors
++ I UnsetEnv TEMP 
+
+##                                                              }}}3
+##   │ ├OpenManpage                                             {{{3
+
+##  2 helper functions to view manpages, and the perldocs for fvwmperl.
+
+DestroyFunc OpenManpage
+AddToFunc OpenManpage I Exec exec urxvt \
+  -T "Manpage: $[0]" -n "Manpage: $[0]" \
+  -fn tamsyn20bold -fb tamsyn20bold \
+  -fg gray70 -bg gray9 -e man $[0]
+
+##                                                              }}}3
+##   │ └OpenPerldoc                                             {{{3
+
+DestroyFunc OpenPerldoc
+AddToFunc OpenPerldoc I Exec exec urxvt \
+  -T "Perldoc: $[0]" -n "Perldoc: $[0]" \
+  -fn tamsyn20bold -fb tamsyn20bold \
+  -fg gray70 -bg gray9 -e fvwm-perllib man $[0]
+
+##                                                              }}}3
+##   │                                                          }}}2
+##   ├MainMenu-related                                          {{{2
+##   │ ├OpenEmail                                               {{{3
+
+DestroyFunc OpenEmail
+AddToFunc OpenEmail
++ I Test (!F /media/emails/post-hooks) \
+      FF-Notify 4 Nop "Fail: Email still locked."
++ I Test (!F /media/emails/post-hooks) Break
++ I Next (Icedove) FlipFocus
++ I None (Icedove) Exec exec icedove 1>/dev/null 2>&1
+
+##                                                              }}}3
+##   │ └OpenPass                                                {{{3
+
+##  A launcher function for the password manager.
+DestroyFunc OpenPass
+AddToFunc OpenPass
++ I Next ("~/.passwords.gpg", CirculateHit) FlipFocus
++ I TestRc (NoMatch) Exec exec urxvt \
+    -fn $[infostore.dejavu18bold] -fb $[infostore.dejavu18bold] \
+    -T "~/.passwords.gpg" -n "~/.passwords.gpg" \
+    -b 8 -bg gray9 -e vim $[infostore.passwords]
+
+##                                                              }}}3
+##   │                                                          }}}2
+##   ├Music-related                                             {{{2
+##   │ ├PlayRadio                                               {{{3
+
+DestroyFunc PlayRadio
+AddToFunc PlayRadio I RunModule RadioMenu play $[0]
+
+##                                                              }}}3
+##   │ ├StopTrack                                               {{{3
+
+##  Stops radio and/or MPD, whichever is playing.
+
+DestroyFunc StopTrack
+AddToFunc StopTrack
++ I SetEnv RADIOSTATUS 0
++ I SetEnv MPDSTATUS 0
++ I PipeRead ' \
+      j="^mpv --no-ytdl --no-terminal *--cache=auto --cache-initial=0" ; \
+      k=`pgrep -f "$j" | wc -l` ; \
+      [ $k -gt 0 ] && echo "SetEnv RADIOSTATUS 1" ; '
++ I PipeRead ' \
+      mpc | grep -q "^\\[playing\\]" && echo "SetEnv MPDSTATUS 1" ; '
++ I Test (EnvMatch MPDSTATUS 1) Exec mpc pause
++ I Test (EnvMatch RADIOSTATUS 1) RunModule RadioMenu stop 
++ I UnsetEnv RADIOSTATUS 
++ I UnsetEnv MPDSTATUS 
+
+
+##                                                              }}}3
+##   │ ├NextTrack                                               {{{3
+
+##  Two functions that play the next radio_station/MPD_track
+##  depending on which is still playing.
+
+DestroyFunc NextTrack
+AddToFunc NextTrack
++ I SetEnv RADIOSTATUS 0
++ I PipeRead ' \
+      j="^mpv --no-ytdl --no-terminal *--cache=auto --cache-initial=0" ; \
+      k=`pgrep -f "$j" | wc -l` ; \
+      [ $k -gt 0 ] && echo "SetEnv RADIOSTATUS 1" ; '
++ I Test (EnvMatch RADIOSTATUS 1) RunModule RadioMenu next $[infostore.radio_index]
++ I Test (EnvMatch RADIOSTATUS 0) Exec mpc next
++ I UnsetEnv RADIOSTATUS 
+
+##                                                              }}}3
+##   │ └PreviousTrack                                           {{{3
+
+DestroyFunc PreviousTrack
+AddToFunc PreviousTrack
++ I SetEnv RADIOSTATUS 0
++ I PipeRead ' \
+      j="^mpv --no-ytdl --no-terminal *--cache=auto --cache-initial=0" ; \
+      k=`pgrep -f "$j" | wc -l` ; \
+      [ $k -gt 0 ] && echo "SetEnv RADIOSTATUS 1" ; '
++ I Test (EnvMatch RADIOSTATUS 1) RunModule RadioMenu previous $[infostore.radio_index]
++ I Test (EnvMatch RADIOSTATUS 0) Exec mpc prev
++ I UnsetEnv RADIOSTATUS 
+
+##                                                              }}}3
+##   │                                                          }}}2
+##   ├Volume+Brightness                                         {{{2
+##   │ ├BrightUp                                                {{{3
+
+DestroyFunc BrightUp
+AddToFunc BrightUp  
++ I Exec sudo /root/bin/bl_up.sh
++ I Schedule 300 SendToModule UpdatePanelBar
+
+##                                                              }}}3
+##   │ ├BrightDown                                              {{{3
+
+DestroyFunc BrightDown
+AddToFunc BrightDown  
++ I Exec sudo /root/bin/bl_down.sh
++ I Schedule 300 SendToModule UpdatePanelBar
+
+##                                                              }}}3
+##   │ ├VolumeUp                                                {{{3
+
+DestroyFunc VolumeUp
+AddToFunc VolumeUp  
++ I Exec amixer set Master "3%+" -q &>/dev/null
++ I Schedule 300 SendToModule UpdatePanelBar
+
+##                                                              }}}3
+##   │ └VolumeDown                                              {{{3
+
+DestroyFunc VolumeDown
+AddToFunc VolumeDown  
++ I Exec amixer set Master "3%-" -q &>/dev/null
++ I Schedule 300 SendToModule UpdatePanelBar
+
+##                                                              }}}3
+##   │                                                          }}}2
+##   ├Module-Helpers                                            {{{2
+##   │ ├RunModule                                               {{{3
+
+##  2 helper functions that pass args to a new module via env vars.
+
+DestroyFunc RunModule
+AddToFunc RunModule
++ I SetEnv ARG1 $[1]
++ I SetEnv ARG2 $[2]
++ I SetEnv ARG3 $[3]
++ I Module $[0] 
++ I UnsetEnv ARG1
++ I UnsetEnv ARG2
++ I UnsetEnv ARG3
+
+##   │                                                          }}}3
+##   │ ├RunModuleSynchronous                                    {{{3
+
+DestroyFunc RunModuleSynchronous
+AddToFunc RunModuleSynchronous
++ I SetEnv ARG1 $[1]
++ I SetEnv ARG2 $[2]
++ I SetEnv ARG3 $[3]
++ I ModuleSynchronous $[0] 
++ I UnsetEnv ARG1
++ I UnsetEnv ARG2
++ I UnsetEnv ARG3
+
+##   │ │                                                        }}}3
+##   │ └RestartModule                                           {{{3
+
+DestroyFunc RestartModule
+AddToFunc RestartModule
++ I SetEnv ARG $[0]
++ I SetEnv TEMP 1
++ I -PipeRead ' \
+       retvar=`ps -ef | grep "$ARG" | grep -v grep | wc -l` ; \
+       [ "$retvar" -eq 0 ] && echo "SetEnv TEMP 0" ; '
++ I Test (EnvMatch TEMP 0) $[1-]
++ I Test (EnvMatch TEMP 0) Echo RestartModule : $[0]
++ I UnsetEnv ARG
++ I UnsetEnv TEMP
+
+##                                                              }}}3
+##   │                                                          }}}2
+##   └Other-helper-functions                                    {{{2
+##     ├ReadInfoStore                                           {{{3
+
+DestroyFunc ReadInfoStore
+AddToFunc ReadInfoStore I PipeRead ' \
+    j=`head -n1 "$[1]"` ; \
+    echo "InfoStoreAdd $[0] \\"$j\\"" ; '
+
+##                                                              }}}3
+##     ├SaveInfoStore                                           {{{3
+
+DestroyFunc SaveInfoStore
+AddToFunc SaveInfoStore
++ I Exec echo -n "$[infostore.$[0]]" >"$[1]" 
+
+##                                                              }}}3
+##     ├RootCrop                                                {{{3
+
+##  Autocrop the image $[0], and set it as the root wallpaper.
+DestroyFunc RootCrop
+AddToFunc RootCrop
++ I RunModule RootCrop "$[0]"
++ I InfoStoreAdd wallpaper "$[0]"
++ I SaveInfoStore wallpaper $[FVWM_USERDIR]/.wallpaper
+
+##                                                              }}}3
+##     ├OpenMainTmux                                            {{{3
+
+##  A launcher function for the main urxvt/tmux terminal.
+DestroyFunc OpenMainTmux
+AddToFunc OpenMainTmux
++ I Next (MainTmux, CirculateHit) FlipFocus
++ I TestRc (Match) Break
++ I Exec exec urxvt -n "MainTmux" -T "MainTmux" -b 5 \
+      -fn $[infostore.dejavu18] -fb $[infostore.dejavu18bold] \
+      -e $[FVWM_USERDIR]/bin/tmux-main
+
+##                                                              }}}3
+##     ├EmptyFolder                                             {{{3
+
+##  Make an empty folder
+DestroyFunc EmptyFolder
+AddToFunc EmptyFolder I PipeRead ' \
+  mkdir -p "$[0]" 2>/dev/null ; \
+  rm -r "$[0]"/* 2>/dev/null' 
+
+##                                                              }}}3
+##     ├OneAppOnly                                              {{{3
+
+##  If a window exists, then FlipFocus to it, else create a new window.
+DestroyFunc OneAppOnly
+AddToFunc OneAppOnly
++ I Next ($[0], CirculateHit) FlipFocus
++ I TestRc (NoMatch) None ($[0]) Exec exec $[1-] 1>/dev/null 2>&1
+
+##                                                              }}}3
+##     ├RebuildMenu                                             {{{3
+
+##  Rebuilds a XDG menu for the MainMenu.
+DestroyFunc RebuildMenu
+AddToFunc RebuildMenu
++ I FF-Notify 4 Nop "Please wait..."
++ I Exec fvwm-menu-desktop \
+   --desktop fvwm \
+   --menu-type applications \
+   --theme $[infostore.app_icon_theme] \
+   --size 16 \
+   --mini-icon-dir $[infostore.app_icon_dir] \
+   --enable-mini-icons >$[FVWM_USERDIR]/.xdgmenu 
++ I Schedule 10000 ReloadImagePath
+
+##  https://github.com/domichel/fvwm-xdg-menu
+##  Recommended : python-xdg, librsvg2-bin
+
+##                                                              }}}3
+##     ├ReloadImagePath                                         {{{3
+
+DestroyFunc ReloadImagePath
+AddToFunc ReloadImagePath
++ I PipeRead 'for zz in $(find $[FVWM_USERDIR]/images -type d ) ; \
+        do echo ImagePath  +:$zz ; done '
++ I ImagePath +:/usr/share/icons
++ I ImagePath +:/usr/share/pixmaps
++ I ImagePath +:/usr/include/X11/bitmaps/
+
+##                                                              }}}3
+##                                                              }}}2
+##                                                              }}}1
+
+##  FvwmEvent + functions                                       {{{1
+##   ├Config                                                    {{{2
+
+##  Various event-based tasks. To refocus when focus has been lost. To
+##  thumbnail windows that are focused or deiconified. And to cleanup
+##  after windows are destroyed.
+
+DestroyModuleConfig FvwmEvent: *
+*FvwmEvent: Cmd Function
+*FvwmEvent: destroy_window FE-DestroyWindow
+*FvwmEvent: new_desk FE-NewDesk
+*FvwmEvent: focus_change FE-FocusChange 
+*FvwmEvent: iconify FE-Iconify
+*FvwmEvent: deiconify FE-DeIconify
+*FvwmEvent: raise_window FE-Raise
+*FvwmEvent: configure_window  FE-ConfigWindow
+*FvwmEvent: add_window FE-AddWindow
+*FvwmEvent: old_add_window FE-AddWindow
+
+##                                                              }}}2
+##   ├FE-ConfigWindow                                           {{{2
+
+DestroyFunc FE-ConfigWindow
+AddToFunc FE-ConfigWindow
++ I ThisWindow ("sxiv|feh|mpv|FvwmIdent") Layer 0 $[infostore.putlayer]
++ I ThisWindow ("sxiv|feh|mpv|FvwmIdent") Raise
++ I ThisWindow ("xzoom*") Layer 0 $[infostore.toplayer]
++ I ThisWindow ("xzoom*") Raise
+
+##                                                              }}}2
+##   ├FE-Raise                                                  {{{2
+
+DestroyFunc FE-Raise  
+AddToFunc FE-Raise I ThisWindow ("Firefox|Icedove") FlipFocus
+
+##                                                              }}}2
+##   ├FE-Iconify                                                {{{2
+
+DestroyFunc FE-Iconify
+AddToFunc FE-Iconify I RestoreFocus
+
+##                                                              }}}2
+##   ├FE-DeIconify                                              {{{2
+
+DestroyFunc FE-DeIconify
+AddToFunc FE-DeIconify
++ I Schedule 2000 ThisWindow (Focused, CurrentDesk, !Iconic, Visible) \
+        SendToModule Thumbnail capture $[w.id]
+
+##                                                              }}}2
+##   ├FE-AddWindow                                              {{{2
+
+DestroyFunc FE-AddWindow
+AddToFunc FE-AddWindow
++ I Any ("Firefox|Icedove", CurrentDesk) ChangePanelBarLayer $[infostore.bottomlayer]
++ I None ("Firefox|Icedove", CurrentDesk) ChangePanelBarLayer $[infostore.toplayer]
+
+##                                                              }}}2
+##   ├FE-DestroyWindow                                          {{{2
+
+DestroyFunc FE-DestroyWindow
+AddToFunc FE-DestroyWindow
++ I ThisWindow Exec rm "$[FVWM_THUMBS]/$[w.id].png" 1>/dev/null 2>&1 
++ I ThisWindow InfoStoreRemove x_$[w.id]
++ I ThisWindow InfoStoreRemove y_$[w.id]
++ I ThisWindow InfoStoreRemove width_$[w.id] 
++ I ThisWindow InfoStoreRemove height_$[w.id] 
++ I ThisWindow InfoStoreRemove layer_$[w.id] 
++ I RestoreFocus
+
+##                                                              }}}2
+##   ├FE-NewDesk                                                {{{2
+
+DestroyFunc FE-NewDesk
+AddToFunc FE-NewDesk
++ I OpenSubPanel close
++ I SetEnv TEMP no
++ I Any ("Firefox|Icedove", CurrentDesk) ChangePanelBarLayer $[infostore.bottomlayer]
++ I None ("Firefox|Icedove", CurrentDesk) ChangePanelBarLayer $[infostore.toplayer]
++ I Next (AcceptsFocus,CurrentDesk,!Iconic,State 10) SetEnv TEMP yes
++ I Next (AcceptsFocus,CurrentDesk,!Iconic,State 10) WindowListFunc
++ I Test (Envmatch TEMP yes) All (CurrentDesk) State 10 False
++ I Test (Envmatch TEMP yes) All (CurrentDesk) WindowStyle !State 10
++ I Test (Envmatch TEMP yes) UpdateStyles
++ I Test (Envmatch TEMP yes) Break 1
++ I RestoreFocus  
+
+##  NOTE: I found a situation where window states are not cleared 
+##  properly. To avoid, I clear "state 10" by two methods.
+##  For reasons unknown, I also had an unexplained bug when using the 
+##  keeprc testrc syntax. So I have avoided it until I understand why.
+        
+##                                                              }}}2
+##   └FE-FocusChange                                            {{{2
+
+DestroyFunc FE-FocusChange
+AddToFunc FE-FocusChange
++ I Schedule 2000 ThisWindow (Focused, CurrentDesk, !Iconic, Visible) \
+        SendToModule Thumbnail capture $[w.id]
+
+##                                                              }}}2
+##                                                              }}}1
+
+##  MainMenu + submenus.                                        {{{1
+##   ├MainMenu                                                  {{{2
+
+DestroyMenu MainMenu
+AddToMenu MainMenu 
++ "%mm_config.png%Run..." Exec gmrun
++ "" Nop
++ "%mm_urxvt.png%&Term" Exec exec urxvt \
+  -b 8 -g 96x27 -fg grey70 -fn tamsyn20bold -fb tamsyn20bold 
++ "%mm_iceweasel.png%&Web" OneAppOnly Firefox firefox
++ "%mm_email.png%&Email" OpenEmail
++ "%mm_passwords.png%&Pass" OpenPass
++ "" Nop
++ "%mm_play.png%&Apps" Popup AppMenu
++ "%mm_debian.png%X&dg" Popup XdgMenu
++ "%mm_radio.png%&Radio" Popup RadioMenu
++ "%mm_unetbootin.png%&Mount" Popup MountMenu
++ "%system_menu.png%&FVWM" Popup DesktopMenu
++ "" Nop
++ "%mm_locked.png%&Lock" Exec fvwm-slock
++ "%exit_menu.png%E&xit" Popup ExitMenu
+##                                                              }}}2
+##   ├XdgMenu                                                   {{{2 
+
+DestroyMenu XdgMenu
+AddToMenu XdgMenu
++ DynamicPopupAction MakeXdgMenu
+
+DestroyFunc MakeXdgMenu
+AddToFunc MakeXdgMenu
++ I DestroyMenu recreate XdgMenu
++ I Read $[FVWM_USERDIR]/.xdgmenu
++ I AddToMenu XdgMenu "&Tools%accessories_menu.png%" Popup "Accessories"
++ I AddToMenu XdgMenu "&Graphics%graphics_menu.png%" Popup "Graphics"
++ I AddToMenu XdgMenu "&Internet%network_menu.png%" Popup "Internet"
++ I AddToMenu XdgMenu "&Media%multimedia_menu.png%" Popup "Multimedia"
++ I AddToMenu XdgMenu "S&ettings%settings_menu.png%" Popup "Settings"
++ I AddToMenu XdgMenu "&System%system_menu.png%" Popup "System"
++ I AddToMenu XdgMenu "" Nop
++ I AddToMenu XdgMenu "%mm_regen_menu.png%&Rebuild" RebuildMenu
+
+##                                                              }}}2
+##   ├ExitMenu                                                  {{{2
+ 
+DestroyMenu ExitMenu
+AddToMenu ExitMenu
++ "%mm_session_reboot.png%&Reboot" ShutdownFunc Exec sudo reboot
++ "%mm_session_shutdown.png%&Shutdown" ShutdownFunc Exec sudo poweroff
+
+##                                                              }}}2
+##   ├AppMenu                                                   {{{2 
+##   │ ├AppMenu                                                 {{{3 
+
+DestroyMenu AppMenu
+AddToMenu AppMenu 
++ "%mm_ncmpcpp.png%Ncmpcpp" StartNcmpcppGui
++ "%mm_transmission.png%T&rcli" OpenTransmission
++ "%mm_calendar.png%T&V Schedule" FF-TVSchedule FF-Notify 6 Nop \"No TV shows avail.\"
++ "" Nop
++ "%mm_dillo.png%&Sharetv" BrowseTorrentz
++ "%mm_dillo.png%&PirateBay" BrowsePirateBay
++ "" Nop
++ "%mm_dillo.png%&Forums" BrowseForums
++ "%mm_dillo.png%LinuxBB&Q" BrowseLinuxBBQ
++ "%mm_rss_feeds.png%&Newsbeuter" OpenFeeds 
++ "%mm_rss_feeds.png%&Update News" UpdateFeeds 
++ "" Nop
++ "%mm_youtube.png%&Youtube-dl" Exec exec \
+     urxvt -T youtube-dl -n youtube-dl \
+     -fn terminus-bold-16 -fb terminus-bold-16 -b 8 \
+     -e sh -c "youtube-get $[infostore.ytdl_list] ; sleep 180" 
++ "%mm_gvim.png%Edit Urls" OpenVim "$(readlink -f $[infostore.ytdl_list])"
++ "%mm_exit.png%&Clear Urls" Exec >$[infostore.ytdl_list]
++ "" Nop
++ "%mm_gvim.png%&One-Liners" OpenVim \
+         $[HOME]/documents/003-Linux-Notes/random-notes.txt \
+         $[HOME]/documents/003-Linux-Notes/one-liners.txt
++ "" Nop
++ "%mm_urxvt.png%&Terms" Popup TermMenu
+
+##                                                              }}}3 
+##   │ └TermMenu                                                {{{3 
+
+DestroyMenu TermMenu
+AddToMenu TermMenu
++ "%mm_bitmap.png%Terminus-16" Exec exec \
+     urxvt -g 60x20 -b 5 -fn terminus-bold-16 -fb terminus-bold-16
++ "%mm_bitmap.png%Tamsyn-20" Exec exec \
+     urxvt -g 60x20 -b 5 -fn tamsyn20bold -fb tamsyn20bold
++ "%mm_bitmap.png%Dejavu-18" Exec exec \
+     urxvt -g 60x20 -b 5 -fn $[infostore.dejavu18bold] -fb $[infostore.dejavu18bold]
++ "" Nop
++ "%mm_xterm.png%Xterm" Exec exec \
+     xterm -geometry 60x20 -fn terminus-bold-16 -fb terminus-bold-16
+
+##                                                              }}}3 
+##   │                                                          }}}2
+##   ├MountMenu                                                 {{{2 
+##   │ ├MountMenu                                               {{{3 
+
+DestroyMenu MountMenu
+AddToMenu MountMenu
++ DynamicPopupAction MakeMountMenu
+
+DestroyFunc MakeMountMenu
+AddToFunc MakeMountMenu
++ I DestroyMenu recreate MountMenu
++ I ModuleSynchronous MountMenu
+
+##                                                              }}}3 
+##   │ └MountMenuTitled                                         {{{3 
+
+DestroyMenu MountMenuTitled
+AddToMenu MountMenuTitled
++ DynamicPopupAction MakeMountMenuTitled
+
+DestroyFunc MakeMountMenuTitled
+AddToFunc MakeMountMenuTitled
++ I DestroyMenu recreate MountMenuTitled
++ I AddToMenu MountMenuTitled MountMenu Title
++ I ModuleSynchronous MountMenu
+
+##                                                              }}}3 
+##   │                                                          }}}2
+##   ├RadioMenu                                                 {{{2
+##   │ ├RadioMenu                                               {{{3 
+
+DestroyMenu RadioMenu
+AddToMenu RadioMenu
++ DynamicPopupAction MakeRadioMenu
+
+DestroyFunc MakeRadioMenu
+AddToFunc MakeRadioMenu
++ I DestroyMenu recreate RadioMenu
++ I RunModuleSynchronous RadioMenu menu $[infostore.radio_index]
+
+##                                                              }}}3 
+##   │ └RadioMenuTitled                                         {{{3 
+
+DestroyMenu RadioMenuTitled
+AddToMenu RadioMenuTitled
++ DynamicPopupAction MakeRadioMenuTitled
+
+DestroyFunc MakeRadioMenuTitled
+AddToFunc MakeRadioMenuTitled
++ I DestroyMenu recreate RadioMenuTitled
++ I AddToMenu RadioMenuTitled RadioMenu Title
++ I RunModuleSynchronous RadioMenu menu $[infostore.radio_index]
+
+##                                                              }}}3 
+##   │                                                          }}}2
+##   └DesktopMenu                                               {{{2 
+##     ├DesktopMenu                                             {{{3 
+
+DestroyMenu DesktopMenu
+AddToMenu DesktopMenu
++ DynamicPopupAction MakeDesktopMenu
+
+DestroyFunc MakeDesktopMenu
+AddToFunc MakeDesktopMenu 
++ I DestroyMenu DesktopMenu recreate
++ I AddToMenu DesktopMenu MissingSubmenuFunction WallBrowser
++ I AddToMenu DesktopMenu "%mm_debug_menu.png%&Debug" Popup DebugMenu
++ I AddToMenu DesktopMenu "%mm_identify.png%&Info" Popup InfoMenu
++ I AddToMenu DesktopMenu "%mm_scrot.png%&Scrot" Popup ScrotMenu
++ I AddToMenu DesktopMenu "%mm_config.png%Set&tings" Popup DotfilesMenu
++ I AddToMenu DesktopMenu "%mm_images.png%&Walls" Popup "$[infostore.wallpapers_folder]"
+
+##                                                              }}}3 
+##     ├WallBrowser                                             {{{3 
+
+##  Build a thumbnail menu via the WallBrowser module.
+DestroyFunc WallBrowser
+AddToFunc WallBrowser
++ I RunModuleSynchronous WallBrowser "$[0]" "$[infostore.wallthumbs_color]"
+
+##                                                              }}}3 
+##   │ ├DotfilesMenu                                            {{{3 
+
+DestroyMenu DotfilesMenu
+AddToMenu DotfilesMenu 
++ "%mm_gvim.png%&Bash" OpenVim \
+      "$[HOME]/.bashrc" \
+      "$[HOME]/.bash_aliases" 
++ "%mm_gvim.png%Ncmpcpp" OpenVim \
+      "$[HOME]/.ncmpcpp/config" 
++ "%mm_gvim.png%&Newsbeuter" OpenVim \
+      "$[HOME]/.newsbeuter/config" \
+      "$[HOME]/.newsbeuter/urls" 
++ "%mm_gvim.png%&Pal" OpenVim \
+    "$[HOME]/.pal/torrents.pal" \
+    "$[HOME]/.pal/yearly.pal" \
+    "$[HOME]/.pal/birthdays.pal" \
+    "$[HOME]/.pal/dates.pal" \
+    "$[HOME]/.pal/pal.conf" 
++ "%mm_gvim.png%&Ranger" OpenVim \
+      "$[HOME]/.config/ranger/rc.conf" \
+      "$[HOME]/.config/ranger/rifle.conf" 
++ "%mm_gvim.png%&Vim" OpenVim "$[HOME]/.vimrc"
+
+##                                                              }}}3 
+##     ├ScrotMenu                                               {{{3 
+
+DestroyMenu ScrotMenu
+AddToMenu ScrotMenu 
++ "%mm_xzoom.png%Selection" FF-Notify 2 ScrotSel "Please select region."
++ "%mm_scrot.png%5 seconds" FF-Notify 3 Scrot5sec "Screenshot in 5sec"
++ "%mm_scrot.png%10 seconds" FF-Notify 3 Scrot10sec "Screenshot in 10sec"
++ "%mm_scrot.png%Now" ScrotNow
+
+##                                                              }}}3 
+##     ├InfoMenu                                                {{{3 
+
+DestroyMenu InfoMenu
+AddToMenu InfoMenu 
++ "%mm_urxvt.png%Fvwm" OpenManpage Fvwm
++ "%mm_urxvt.png%FvwmAnimate" OpenManpage FvwmAnimate
++ "%mm_urxvt.png%FvwmButtons" OpenManpage FvwmButtons
++ "%mm_urxvt.png%FvwmCommand" OpenManpage FvwmCommand
++ "%mm_urxvt.png%FvwmEvent" OpenManpage FvwmEvent
++ "%mm_urxvt.png%FvwmForm" OpenManpage FvwmForm
++ "FvwmPerl" Title
++ "%mm_urxvt.png%index" OpenPerldoc index
++ "%mm_urxvt.png%tutorial" OpenPerldoc tutorial
++ "%mm_urxvt.png%events" OpenPerldoc events
++ "%mm_urxvt.png%FVWM::Module" OpenPerldoc FVWM::Module
++ "%mm_urxvt.png%FVWM::Tracker" OpenPerldoc FVWM::Tracker
+
+##                                                              }}}3 
+##     └DebugMenu                                               {{{3 
+
+DestroyMenu DebugMenu
+AddToMenu DebugMenu 
++ "%mm_urxvt.png%FvwmDebug" Module FvwmDebug --log \
+    '|xconsole -file /dev/stdin -geometry 600x400 -notify' 
++ "%mm_identify.png%Fvwm&Ident" NoWindow Pick Module FvwmIdent
++ "%mm_urxvt.png%Fvwm&Console" OpenConsole FvwmConsole
++ "%mm_urxvt.png%PsMem" OpenPsmem
++ "%mm_urxvt.png%Xsession-errors" OpenXErrors
+
+##                                                              }}}3 
+##                                                              }}}2
+##                                                              }}}1
+
+##  Other Menus                                                 {{{1 
+##   ├WindowMenu                                                {{{2
+##   │ ├WindowMenu                                              {{{3
+
+DestroyMenu WindowMenu
+AddToMenu WindowMenu
++ DynamicPopupAction MakeWindowMenu
+
+DestroyFunc MakeWindowMenu
+AddToFunc MakeWindowMenu
++ I Focus
++ I DestroyMenu recreate WindowMenu
++ I ThisWindow (!Maximized) AddToMenu WindowMenu \
+    "%fns-window-maximize.svg:$[infostore.wm_iconsize]%Maximize	Alt-F10" FullMaximize
++ I ThisWindow (Maximized) AddToMenu WindowMenu \
+    "%fns-window-unmaximize.svg:$[infostore.wm_iconsize]%Restore	Alt-F10" ToggleMaximize
++ I ThisWindow AddToMenu WindowMenu \
+    "%fns-window-iconify.svg:$[infostore.wm_iconsize]%Iconify	Alt-F9" Iconificate
++ I ThisWindow (!Maximized,!Shaded) AddToMenu WindowMenu \
+    "%fns-window-shade.svg:$[infostore.wm_iconsize]%Shade	Alt-F7" WindowShade True
++ I ThisWindow (Shaded) AddToMenu WindowMenu \
+    "%fns-window-shade.svg:$[infostore.wm_iconsize]%UnShade	Alt-F7" WindowShade False
++ I ThisWindow (Sticky) AddToMenu WindowMenu \
+    "%wm_pin.png%UnSticky	Alt-F6" Schedule 300 WindowStyle !Sticky
++ I ThisWindow (Sticky) AddToMenu WindowMenu \
+    "%wm_pin.png%Sticky	Alt-F6" Schedule 300 WindowStyle Sticky
++ I AddToMenu WindowMenu "" Nop
++ I ThisWindow AddToMenu WindowMenu \
+    "%fns-window-move.svg:$[infostore.wm_iconsize]%To &Desktop	>" PopUp MoveToDesktopMenu
++ I ThisWindow AddToMenu WindowMenu \
+    "%fns-system.svg:$[infostore.wm_iconsize]%Window &Tools	>" PopUp WindowToolsMenu
++ I ThisWindow AddToMenu WindowMenu \
+    "%fns-window-utilities.svg:$[infostore.wm_iconsize]%&Properties	>" PopUp PropertiesMenu
++ I ThisWindow (Closable) AddToMenu WindowMenu \
+    "" Nop
++ I ThisWindow (Closable) AddToMenu WindowMenu \
+    "%wm_application-exit.png%Close	Alt-F4" ThisWindow Close
+    
+##  Function alias for WindowMenu. Used via the Alt+F8 binding.
+DestroyFunc WindowMenu
+AddToFunc WindowMenu
++ I IfTitled Current Menu WindowMenu Title -30p -6p
++ I IfNotTitled Current Menu WindowMenu Interior -6p -6p
+
+##                                                              }}}3
+##   │ ├MoveToDesktopMenu                                       {{{3 
+
+DestroyMenu MoveToDesktopMenu
+PipeRead ' for zz in $(seq $[infostore.desk_min] $[infostore.desk_max]) ; \
+    do echo "AddToMenu MoveToDesktopMenu \
+    \\"%fns-window-move.svg:$[infostore.wm_iconsize]%$zz\\" MoveWindowToDesk $zz"   ; done '
+
+##                                                              }}}3
+##   │ ├WindowToolsMenu                                         {{{3 
+
+DestroyMenu WindowToolsMenu
+AddToMenu WindowToolsMenu 
++ "%wm_scrot.png%&Scrot Window" ScrotWindow
++ "%wm_identify.png%&Identify" Module FvwmIdent
++ "" Nop
++ "%wm_application-exit.png%&Destroy" Destroy
+
+##                                                              }}}3
+##   │ └PropertiesMenu                                          {{{3 
+
+DestroyMenu PropertiesMenu
+AddToMenu PropertiesMenu
++ DynamicPopupAction MakePropsMenu
+
+DestroyFunc MakePropsMenu
+AddToFunc MakePropsMenu 
++ I DestroyMenu recreate PropertiesMenu
++ I ThisWindow (!Maximized) IfTitled AddToMenu PropertiesMenu \
+    "%wm_tick.png%&Titled" HideTitle
++ I ThisWindow (!Maximized) IfNotTitled AddToMenu PropertiesMenu \
+    "%wm_null.png%&Titled" ShowTitle
++ I ThisWindow (!Maximized) IfBordered AddToMenu PropertiesMenu \
+    "%wm_tick.png%&Bordered" SetWindowBorders no
++ I ThisWindow (!Maximized) IfNotBordered AddToMenu PropertiesMenu \
+    "%wm_null.png%&Bordered" SetWindowBorders yes
++ I ThisWindow (!Maximized) AddToMenu PropertiesMenu "" Nop
++ I ThisWindow (Layer $[infostore.toplayer]) AddToMenu PropertiesMenu \
+    "%wm_tick.png%Top Layer" Nop
++ I TestRc (NoMatch) ThisWindow AddToMenu PropertiesMenu \
+    "%wm_null.png%Top Layer" WindowStyle StaysOnTop
++ I ThisWindow (Layer $[infostore.putlayer]) AddToMenu PropertiesMenu \
+    "%wm_tick.png%Put Layer" Nop
++ I TestRc (NoMatch) ThisWindow AddToMenu PropertiesMenu \
+    "%wm_null.png%Put Layer" WindowStyle StaysPut
++ I ThisWindow (Layer $[infostore.bottomlayer]) AddToMenu PropertiesMenu \
+    "%wm_tick.png%Bottom Layer" Nop
++ I TestRc (NoMatch) ThisWindow AddToMenu PropertiesMenu \
+    "%wm_null.png%Bottom Layer" WindowStyle StaysOnBottom
++ I AddToMenu PropertiesMenu "" Nop
++ I ThisWindow (AcceptsFocus) AddToMenu PropertiesMenu \
+    "%wm_tick.png%Focusable" WindowStyle NeverFocus
++ I TestRc (NoMatch) AddToMenu PropertiesMenu \
+    "%wm_null.png%Focusable" WindowStyle ClickToFocus
++ I ThisWindow (FixedSize) AddToMenu PropertiesMenu \
+    "%wm_tick.png%Fixed Size" WindowStyle VariableSize
++ I TestRc (NoMatch) ThisWindow  AddToMenu PropertiesMenu \
+    "%wm_null.png%Fixed Size" WindowStyle FixedSize
++ I ThisWindow (FixedPosition) AddToMenu PropertiesMenu \
+    "%wm_tick.png%Fixed Position" WindowStyle VariablePosition
++ I TestRc (NoMatch) ThisWindow  AddToMenu PropertiesMenu \
+    "%wm_null.png%Fixed Position" WindowStyle FixedPosition
++ I AddToMenu PropertiesMenu "" Nop
++ I ThisWindow AddToMenu PropertiesMenu \
+    "%fns-window-refresh.svg:$[infostore.wm_iconsize]%&Normal" \
+    UseStyleWindow Normal
++ I ThisWindow AddToMenu PropertiesMenu \
+    "%fns-window-refresh.svg:$[infostore.wm_iconsize]%&Inert" \
+    UseStyleWindow Inert
+
+##                                                              }}}3
+##   │                                                          }}}2
+##   └ClipMenu                                                  {{{2 
+##     ├VideoMenu                                               {{{3 
+
+DestroyMenu VideoMenu
+AddToMenu VideoMenu
++ Videos Title
++ "%mm_mpv.png%Play &Video" MPVPlayVideo
++ "%mm_mpv.png%Play &Audio" MPVPlayAudioOnly
++ "%mm_information.png%Video &Info" IdentifyVideo
+
+##  Function alias for the VideoMenu menu.
+DestroyFunc VideoMenu
+AddToFunc VideoMenu I Menu VideoMenu Root c c
+
+##                                                              }}}3
+##     └UrlMenu                                                 {{{3 
+
+##  Triggered by ClipMenu when an url is copied.
+DestroyMenu UrlMenu
+AddToMenu UrlMenu
++ DynamicPopupAction MakeUrlMenu
+
+DestroyFunc MakeUrlMenu
+AddToFunc MakeUrlMenu
++ I DestroyMenu recreate UrlMenu
++ I RunModuleSynchronous UrlMenu $[infostore.ytdl_list]
+
+##  Function alias for the UrlMenu menu.
+DestroyFunc UrlMenu
+AddToFunc UrlMenu I Menu UrlMenu Root c c
+
+##                                                              }}}3
+##                                                              }}}2
+##                                                              }}}1
+
+##  Mouse bindings                                              {{{1 
+##   ├Root Window context                                       {{{2 
+
+##  Left/Right click to invoke the Main Menu
+Mouse 1 R A IfHoldOrDoubleClick Menu MainMenu Nop
+Mouse 3 R A IfHoldOrDoubleClick Menu MainMenu Nop
+
+##  Use mouse wheel to move to the left/right desktop.
+Mouse 4 R A GotoDesk -1 $[infostore.desk_min] $[infostore.desk_max] 
+Mouse 5 R A GotoDesk 1 $[infostore.desk_min] $[infostore.desk_max]
+
+##                                                              }}}2 
+##   ├Titlebar context                                          {{{2 
+
+##  Click the mini-icon to open the Window Operations Menu
+Mouse 0 1 A WindowMenu
+
+##  ^^FIXME^^ : SHOULD 0 1 A  BE 1 1 A ???
+
+##  Use mouse wheel to Shade/UnShade the window
+Mouse 4 T A WindowShade True
+Mouse 5 T A WindowShade False
+
+##  Right-click to open the Windows Operations Menu.
+Mouse 3 T A IfHoldOrSingleClick WindowMenu
+
+##                                                              }}}2 
+##   └Other                                                     {{{2 
+
+##  Drag move with the left mouse button.
+##  Pointer lies within the window.
+Mouse 1 W M DragMove 
+
+##  Right-click to open the Windows Operations Menu.
+##  Pointer is on the window frames/sides.
+Mouse 3 FS A IfHoldOrSingleClick Menu WindowMenu Interior 0 0 
+
+##  Double-click to deiconify.
+##  Pointer is over a thumbnail icon.
+Mouse 1 I A IfDoubleClick DeIconifyWindow 
+
+##                                                              }}}2 
+##                                                              }}}1
+
+##  Key bindings                                                {{{1
+##   ├Screenshot                                                {{{2  
+
+##  PrintScreen  :  The whole desktop
+Key Print A N ScrotNow
+
+##  Alt + PrintScreen  :  The current window
+Key Print A M ScrotWindow
+
+##  Ctrl + PrintScreen  :  A selected region
+Key Print A C FF-Notify 2 ScrotSel "Please select region."
+
+##                                                              }}}2 
+##   ├RadioMenu                                                 {{{2
+
+##  Super + R   :  Open the Radio Menu
+Key R A 4 Menu RadioMenuTitled Root c c
+
+##  Super + . :  Play next radio station or MPD track.
+##  Super + , :  Play previous radio station or MPD track.
+##  Super + / :  Stop the music for both MPD and radio.
+
+Key period A 4 NextTrack
+Key comma A 4 PreviousTrack
+Key slash A 4 StopTrack
+
+##  Stores current radio num. This initial val is unimportant.
+InfoStoreAdd radio_index 0
+
+##                                                              }}}2 
+##   ├Volume+Brightness                                         {{{2 
+
+##  Volume and Bright with multimedia keys
+
+Key XF86AudioRaiseVolume A A VolumeUp
+Key XF86AudioLowerVolume A A VolumeDown
+Key XF86MonBrightnessDown A A BrightDown
+Key XF86MonBrightnessUp  A A BrightUp
+
+##  Volume and Bright with function keys
+
+##  Super + F1  :  Volume down
+Key F1 A 4 VolumeDown
+##  Super + F2  :  Volume up
+Key F2 A 4 VolumeUp
+##  Super + F3  :  Brightness down
+Key F3 A 4 BrightDown
+##  Super + F4  :  Brightness up
+Key F4 A 4 BrightUp
+
+##                                                              }}}2 
+##   ├Keynav                                                    {{{2 
+
+##  Step change for moving the mouse-pointer.
+InfoStoreAdd mousemove_incx 15
+InfoStoreAdd mousemove_incy 15
+
+##  Super + Ctrl + Arrow : Move mouse-pointer
+Key Left A 4C Exec xdotool mousemove_relative \
+    -- -$[infostore.mousemove_incx] 0 1>/dev/null 2>&1
+Key Right A 4C Exec xdotool mousemove_relative \
+    -- $[infostore.mousemove_incx] 0 1>/dev/null 2>&1
+Key Up A 4C Exec xdotool mousemove_relative \
+    -- 0 -$[infostore.mousemove_incy] 1>/dev/null 2>&1
+Key Down A 4C Exec xdotool mousemove_relative \
+    -- 0 $[infostore.mousemove_incy] 1>/dev/null 2>&1
+
+##  Super + Ctrl + Enter : Mouse left-click
+Key Return A 4C Exec xdotool click 1  1>/dev/null 2>&1
+
+##                                                              }}}2 
+##   ├Other Menu bindings                                       {{{2
+
+##  Alt + F8    :  Open the  Windows Menu
+Key F8 A M WindowMenu
+
+##  Super + M     :  Open the Mount Menu
+Key M A 4 Menu MountMenuTitled Root c c
+
+##  Ctrl + Esc  :  Open the Main Menu
+Key Escape A C Menu MainMenu Root 30 30
+
+##  Super + C     :  Open the ClipMenu 
+Key C A 4 Menu ClipMenu Root c c
+
+##  Alt + Super + C  :  Sync clipboard to primary selection.
+Key C A M4 Exec xsel -op | xsel -ib
+
+##  Super + A     :  Open the AppMenu 
+Key A A 4 Menu AppMenu Root c c
+
+##                                                              }}}2 
+##   ├Window bindings (Alt)                                     {{{2 
+
+##  Alt + F11  :  Full-maximize the window
+Key F11 A M ThisWindow FullMaximize animate
+
+##  Alt + F10  :  Toggle window between maximize and unmaximized state
+Key F10 A M ThisWindow ToggleMaximize animate
+
+##  Alt + F9   :  Iconify the window.
+Key F9 A M ThisWindow IconifyWindow
+
+##  Alt + F7   :  Shade the window.
+Key F7 A M ThisWindow ToggleShade
+
+##  Alt + F6   :  Make the window Sticky
+Key F6 A M ThisWindow Schedule 300 Stick
+
+##  Alt + F5   :  Center the window
+Key F5  A M ThisWindow AnimatedMove 50-50w 50-50w ewmhiwa 
+
+##  Alt + F4   :  Close window
+Key F4  A M ThisWindow Close
+
+##  Alt + Left/Right  :  Switch to the adjacent L/R Desktop 
+Key Left A M GotoDesk -1 $[infostore.desk_min] $[infostore.desk_max] 
+Key Right A M GotoDesk 1 $[infostore.desk_min] $[infostore.desk_max] 
+
+##                                                              }}}2 
+##   ├Window bindings (Super)                                   {{{2 
+
+##  Super + Arrow
+##  Move the window up/down/left/right
+InfoStoreAdd move_increment 10p
+Key Up A 4 ThisWindow (!Iconic, !Maximized) \
+    Move w w-$[infostore.move_increment]
+Key Down A 4 ThisWindow (!Iconic, !Maximized) \
+    Move w w+$[infostore.move_increment]
+Key Left A 4 ThisWindow (!Iconic, !Maximized) \
+    Move w-$[infostore.move_increment] w
+Key Right A 4 ThisWindow (!Iconic, !Maximized) \
+    Move w+$[infostore.move_increment] w
+
+##  Alt + Super + Arrow
+##  Resize the current window up/down/left/right
+Key Up A M4 ThisWindow ResizeWindow NorthEast top_right_corner
+Key Down A M4 ThisWindow ResizeWindow SouthWest bottom_left_corner
+Key Right A M4 ThisWindow ResizeWindow SouthEast bottom_right_corner
+Key Left A M4 ThisWindow ResizeWindow NorthWest top_left_corner
+
+##  Super + Num  :  Switch to Desktop N 
+PipeRead ' for zz in $(seq $[infostore.desk_min] $[infostore.desk_max]); \
+   do echo "Key $zz A 4 GotoDesk 0 $zz" ; done '
+
+##  Shift + Super + Num
+##  Move the current window to workspace N
+PipeRead ' for zz in $(seq $[infostore.desk_min] $[infostore.desk_max]); \
+  do echo "Key $zz A S4 ThisWindow MoveWindowToDesk $zz" ; done '
+
+##  Shift + Super + Left/Right
+##  Move current window to the L/R Desktop
+Key Right A S4 ThisWindow SendWindowTo 1
+Key Left A S4 ThisWindow SendWindowTo -1
+
+##  Super + T : ToggleWindowTitle
+Key T A 4 ThisWindow ToggleTitle
+
+##                                                              }}}2 
+##   └Other bindings                                            {{{2 
+
+##  Super + I  :  Info for the Current Window
+Key I A 4 ThisWindow Module FvwmIdent
+
+##  Super + G  :  Open gmrun
+Key G A 4 Exec exec gmrun
+
+##  Win + S  :  Hide/Unhide the statusbar
+Key S A 4 TogglePanelBar
+
+##                                                              }}}2 
+##                                                              }}}1
+
+##  Menu Settings                                               {{{1 
+##   ├Enhanced Menu Bindings                                    {{{2
+
+##  Enhanced nav key bindings for menus.
+Key Up M A -
+Key Down M A -
+Key Page_Up M A MenuMoveCursor -5 
+Key Page_Down M A MenuMoveCursor 5
+Key Home M A MenuMoveCursor 0 0
+Key End M A MenuMoveCursor 0 -1
+-PipeRead ' \
+    for j in `seq 0 9` ; \
+      do k=$(( (j+1)%10 )) ; \
+      echo "Key $k M A MenuMoveCursor 0 $j" ; \
+    done'
+
+##                                                              }}}2
+##   ├Default Menustyles                                        {{{2 
+
+##  Nix the builtin help menu.
+DestroyMenu MenuFvwmRoot
+
+MenuStyle * Fvwm
+MenuStyle * Font terminus-bold-16
+MenuStyle * TitleFont terminus-bold-16
+MenuStyle * BorderWidth 2
+
+MenuStyle * ActiveFore
+MenuStyle * HilightBack
+MenuStyle * HilightTitleBack
+MenuStyle * TitleUnderlines1
+
+##  Colorsets
+MenuStyle * MenuColorset 20
+MenuStyle * ActiveColorset 21
+MenuStyle * TitleColorset 22
+
+##  Spacing of items within menus.
+MenuStyle * ItemFormat "%|%13.13i%.15l%.15r%.15>%|"
+MenuStyle * VerticalItemSpacing 3 3
+MenuStyle * VerticalTitleSpacing 3 3
+MenuStyle * VerticalMargins 0 2
+
+##  Offset of a submenu relative to its parent.
+MenuStyle * PopupOffset 6 100
+##  The short delay before a popup submenu opens.
+MenuStyle * PopupDelay 500
+##  The pointer warps to the submenu title when opened.
+MenuStyle * TitleWarp
+##  Two mouse clicks within this duration are viewed as a "double-click"
+MenuStyle * DoubleClickTime 500
+##  Disable 3D relief for highlighted menu items.
+MenuStyle * Hilight3DOff
+##  Remove submenu when you move back to its parent menu.
+MenuStyle * RemoveSubmenus
+##  Submenu traingles drawn as solid rather than hollow
+MenuStyle * TrianglesSolid
+
+##                                                              }}}2
+##   └Custom Menustyles                                         {{{2 
+##     ├WindowList                                              {{{3 
+
+DestroyMenuStyle WindowList
+CopyMenuStyle * WindowList
+MenuStyle WindowList ItemFormat "%|%13.13i%.15l%.5i%2.3>%10.|" 
+
+##                                                              }}}3 
+##     ├WallbrowserMenuStyle                                    {{{3 
+
+CopyMenuStyle * WallpaperMenuStyle
+MenuStyle WallpaperMenuStyle VerticalMargins 7 7
+MenuStyle WallpaperMenuStyle VerticalItemSpacing 30 30
+MenuStyle WallpaperMenuStyle MouseWheel ScrollsMenuBackwards
+##  ***  The ChangeMenu cmnd is run from within WallBrowser module.
+
+##                                                              }}}3 
+##     └WindowMenuMenuStyle                                     {{{3 
+
+CopyMenuStyle * WindowMenuStyle
+MenuStyle WindowMenuStyle ItemFormat "%|%13.13i%.15l%.15r%|"
+MenuStyle WindowMenuStyle Font terminus-bold-16
+
+ChangeMenuStyle WindowMenuStyle WindowMenu
+ChangeMenuStyle WindowMenuStyle MoveToDesktopMenu
+ChangeMenuStyle WindowMenuStyle WindowToolsMenu
+ChangeMenuStyle WindowMenuStyle PropertiesMenu
+
+##                                                              }}}3 
+##                                                              }}}2
+##                                                              }}}1
+
+##  Colorsets                                                   {{{1 
+##   ├Default Decor                                             {{{2 
+
+##  Background color within titlebar 
+Colorset 10 bg gray20
+##  Color behind miniicon within titlebar 
+Colorset 11 bg gray20
+##  Border color
+#Colorset 12 bg gray65
+Colorset 12 bg gray75
+##  Text color in titlebar 
+Colorset 13 fg gray70
+
+##                                                              }}}2 
+##   ├MenuStyles                                                {{{2 
+
+##  Color of inactive items in the default menu.
+Colorset 20 fg #999991, bg gray9,  sh $[bg.cs12], hi $[bg.cs12]
+##  Color of active items in the default menu.
+Colorset 21 fg gray70, bg #224159,  sh $[bg.cs12], hi $[bg.cs12]
+##  Color of titles in the default menu.
+Colorset 22 fg gray70, bg #224159, sh $[bg.cs12], hi $[bg.cs12]
+
+##                                                              }}}2 
+##   ├SystemMonitor                                             {{{2 
+
+##  Cpu Colorset, 
+Colorset 201 fg #547A99, sh #1A1B1C
+##  Memory Colorset, 
+Colorset 202 fg #547A99, sh #1A1B1C
+##  Disk Colorset, 
+Colorset 203 fg #547A99, sh #1A1B1C
+##  Iowait Colorset, 
+Colorset 204 fg #547A99, sh #1A1B1C
+##  Network Colorset, 
+Colorset 205 fg #547A99, sh #1A1B1C
+
+##                                                              }}}2 
+##   ├NcmpcppGui                                                {{{2 
+
+##  Progress bar colorset
+Colorset 148 fg SteelBlue4, bg gray9
+##  Default colorset for all areas of padding.
+#Colorset 149 bg gray25
+Colorset 149 bg gray20
+##  For where dark gray9 is needed, possibly with gray60 text.
+Colorset 150 fg gray60, bg gray9
+##  Active Colorset (Pause/play icons)
+Colorset 151 fg gray60, bg gray40
+##  Press Colorset (Pause/play icons)
+Colorset 152 fg gray60, bg gray15
+#  Color of thin borders
+Colorset 153 bg $[bg.cs12]
+
+##  Terminal colors for ncmpcpp
+
+Exec echo "\
+*color0  #737373\n\
+*color1  #a67558\n\
+*color2  #a67458\n\
+*color3  #999999\n\
+*color4  #547A99\n\
+*color5  #996b99\n\
+*color6  #86c1b9\n\
+*color7  #4D9999\n\
+*color8  #999999\n\
+*color9  #cc8f6c\n\
+*color10  #a1b56c\n\
+*color11  #B3B3B3\n\
+*color12  #86A5BF\n\
+*color13  #c493c4\n\
+*color14  #86c1b9\n\
+*color15  #BFBFBF\n"\
+>/tmp/fvwm/ncmpcpp.colors
+
+##                                                              }}}2 
+##   ├Trcli                                                     {{{2 
+
+##  Terminal colors for transmission-remote-cli
+
+Exec echo "\
+*color0  #2E2E2A\n\
+*color1  #B23636\n\
+*color2  #363632\n\
+*color3  #A6984B\n\
+*color4  #314659\n\
+*color5  #503E59\n\
+*color6  #32453F\n\
+*color7  #A6A69D\n\
+*color8  #2E2E2A\n\
+*color9  #B23636\n\
+*color10  #363632\n\
+*color11  #A6984B\n\
+*color12  #314659\n\
+*color13  #503E59\n\
+*color14  #32453F\n\
+*color15  #A6A69D\n"\
+>/tmp/fvwm/trcli.colors
+
+##                                                              }}}2 
+##   └Other                                                     {{{2 
+
+##  Colors for geometry window
+Colorset 0 fg white, bg darkgrey
+##  IconBackgroundColorset
+#Colorset 25 sh #2A5E8B, hi #2A5E8B
+Colorset 25 sh $[bg.cs12], hi $[bg.cs12]
+##  FvwmIdent Colorset
+Colorset 26 fg grey60, bg gray9
+##  Border color for the thumbs in the WallBrowser Menu. A new 
+##  value here only takes effect for any new wallthumbs created.
+InfoStoreAdd wallthumbs_color gray75
+
+##                                                              }}}2 
+##                                                              }}}1
+
+##  PanelBar                                                    {{{1
+##   ├Related Functions                                         {{{2
+##   │ ├StartPanelBar                                           {{{3
+
+DestroyFunc StartPanelBar
+AddToFunc StartPanelBar
++ I StopPanelBar
++ I Schedule 5000 Module UpdateVnstatPanel
++ I Schedule 6000 Module UpdateSystemInfoPanel
++ I Schedule 7000 Module UpdateCalendarPanel
++ I Schedule 8000 Module UpdateDiskUsagePanel
++ I Schedule Periodic  300000 301 Module UpdateWeatherPanel
++ I Schedule Periodic  305000 302 Module UpdateVnstatPanel
++ I Schedule Periodic   60000 303 Module UpdateSystemInfoPanel
++ I Schedule Periodic  310000 305 Module UpdateDiskUsagePanel
++ I Schedule Periodic 1150000 304 Module UpdateCalendarPanel
++ I Schedule 2000 Module FvwmButtons PanelBar
++ I Module FvwmButtons HiddenPanel
++ I Schedule 3000 Module UpdatePanelBar
++ I Schedule 2000 Module FvwmButtons TimeAndDate -g -30000-30000
++ I Schedule 6000 SendToModule UpdatePanelBar
++ I Schedule 6000 ShowPanelBar
+
+##                                                              }}}3
+##   │ ├StopPanelBar                                            {{{3
+
+DestroyFunc StopPanelBar
+AddToFunc StopPanelBar
++ I Deschedule 301
++ I Deschedule 302
++ I Deschedule 303
++ I Deschedule 304
++ I Deschedule 305
++ I KillModule UpdatePanelBar
++ I KillModule FvwmButtons WeatherPanel
++ I KillModule FvwmButtons DiskUsagePanel
++ I KillModule FvwmButtons SystemInfoPanel
++ I KillModule FvwmButtons CalendarPanel
++ I KillModule FvwmButtons VnstatPanel
++ I KillModule FvwmButtons HiddenPanel
++ I KillModule FvwmButtons PanelBar
++ I KillModule FvwmButtons TimeAndDate
+
+##                                                              }}}3
+##   │ ├TogglePanelBar                                          {{{3
+
+DestroyFunc TogglePanelBar
+AddToFunc TogglePanelBar
++ I Next (CirculateHit, PanelBar, Visible) Schedule 100 HidePanelBar
++ I Next (CirculateHit, PanelBar, !Visible) Schedule 100 ShowPanelBar
+
+##                                                              }}}3
+##   │ ├ShowPanelBar                                            {{{3
+
+DestroyFunc ShowPanelBar
+AddToFunc ShowPanelBar
++ I Next (CirculateHit, PanelBar, Visible) Break 1
++ I SetEnv ARG no
++ I Any (TimeAndDate, CurrentDesk) SetEnv ARG yes
++ I Test (EnvMatch ARG yes) Next (HiddenPanel) \
+        Layer 0 $[infostore.abovetoplayer]
++ I Test (EnvMatch ARG yes) Next (PanelBar) Move -+1346p -+21p ewmhiwa
++ I Test (EnvMatch ARG yes) Schedule 250 \
+        Next (PanelBar) AnimatedMove +20p -+21p ewmhiwa
++ I Test (EnvMatch ARG yes) Schedule 750 Next (HiddenPanel) \
+        Layer 0 $[infostore.bottomlayer]
++ I Test (EnvMatch ARG no) Next (PanelBar) Move +20p ++$[vp.height]p ewmhiwa
++ I Test (EnvMatch ARG no) Schedule 250 \
+        Next (PanelBar) AnimatedMove +20p -+21p 
++ I UnsetEnv ARG
+
+##                                                              }}}3
+##   │ ├HidePanelBar                                            {{{3
+
+DestroyFunc HidePanelBar
+AddToFunc HidePanelBar
++ I OpenSubPanel close
++ I SetEnv ARG no
++ I Any (TimeAndDate, CurrentDesk) SetEnv ARG yes
++ I Test (EnvMatch ARG yes) Next (HiddenPanel) \
+        Layer 0 $[infostore.abovetoplayer]
++ I Test (EnvMatch ARG yes) Schedule 250 \
+        Next (PanelBar) AnimatedMove -+1346p -+21p 
++ I Test (EnvMatch ARG yes) Schedule 350 \
+        Next (PanelBar) Move +20p ++$[vp.height]p 
++ I Test (EnvMatch ARG yes) Schedule 750  Next (HiddenPanel) \
+        Layer 0 $[infostore.bottomlayer]
++ I Test (EnvMatch ARG no) Schedule 250 \
+        Next (PanelBar) AnimatedMove +20p ++$[vp.height]p 
+
+##                                                              }}}3
+##   │ ├ChangePanelBarLayer                                     {{{3
+
+DestroyFunc ChangePanelBarLayer
+AddToFunc ChangePanelBarLayer
++ I Style PanelBar Layer $[0]
++ I Style WeatherPanel Layer $[0]
++ I Style VnstatPanel Layer $[0]
++ I Style SystemInfoPanel Layer $[0]
++ I Style DiskUsagePanel Layer $[0]
++ I Style CalendarPanel Layer $[0]
+
+##                                                              }}}3
+##   │ └OpenSubPanel                                            {{{3
+
+DestroyFunc OpenSubPanel
+AddToFunc OpenSubPanel
++ I SetEnv TEMP $[0]
++ I Test (EnvMatch TEMP vnstat) Schedule 250 SendToModule PanelBar PressButton vnstat
++ I Test (!EnvMatch TEMP vnstat) Any (Visible,VnstatPanel) \
+        SendToModule PanelBar PressButton vnstat
++ I Test (EnvMatch TEMP sysinfo) Schedule 250 SendToModule PanelBar PressButton sysinfo
++ I Test (!EnvMatch TEMP sysinfo) Any (Visible,SystemInfoPanel) \
+        SendToModule PanelBar PressButton sysinfo
++ I Test (EnvMatch TEMP disk) Schedule 250 SendToModule PanelBar PressButton disk
++ I Test (!EnvMatch TEMP disk) Any (Visible,DiskUsagePanel) \
+        SendToModule PanelBar PressButton disk
++ I Test (EnvMatch TEMP weather) Schedule 250 SendToModule PanelBar PressButton weather
++ I Test (!EnvMatch TEMP weather) Any (Visible,WeatherPanel) \
+        SendToModule PanelBar PressButton weather
++ I Test (EnvMatch TEMP calendar) Schedule 250 SendToModule PanelBar PressButton calendar
++ I Test (!EnvMatch TEMP calendar) Any (Visible,CalendarPanel) \
+        SendToModule PanelBar PressButton calendar
+
+##                                                              }}}3
+##                                                              }}}2
+##   ├Related Colorsets                                         {{{2
+
+##  VNSTAT
+
+##  Vnstat histogram : tx box fill color
+Colorset 300 fg #3F688B
+##  Vnstat histogram : rx box fill color
+Colorset 301 fg #808020
+##  Vnstat histogram : thin border around filled boxes
+Colorset 302 fg gray70
+##  Vnstat histogram : color of axes and tics 
+Colorset 303 fg gray60
+
+##  Vnstat stats : color of bold headings
+Colorset 304 fg steelblue4
+##  Vnstat stats : color #1 for text
+Colorset 305 fg gray60
+##  Vnstat stats : color #1 for text
+Colorset 306 fg gray50
+##  Vnstat stats : color #1 for text
+Colorset 307 fg gray40
+
+##  CALENDAR
+
+##  Calendar : color of main title text.
+Colorset 310 fg gray70
+##  Calendar : color of text of labels in header. 
+Colorset 311 fg gray60
+##  Calendar : text color of numbers for weekdays.
+Colorset 312 fg gray60
+##  Calendar : text color of numbers for the current day.
+Colorset 313 fg gray85
+##  Calendar : the dim text color of numbers from the prev/next month.
+Colorset 314 fg gray35
+##  Calendar : the fore/back colors for numbers of weekend days.
+Colorset 315 fg #547A99, bg gray15
+##  Calendar : color used to draw the grid lines.
+Colorset 316 fg gray35
+
+##  SYSTEMINFO PANEL
+
+##  SystemInfo : text color
+Colorset 320 fg gray60
+##  SystemInfo : text bold color
+Colorset 321 fg #547A99
+
+##  DISK USAGE PANEL
+
+##  DiskUsagePanel : text color
+Colorset 325 fg gray60
+##  DiskUsagePanel : progressbar colors
+Colorset 327 fg #547A99, bg gray20
+##  DiskUsagePanel : text bold color  UNUSED
+#Colorset 326 fg steelblue4
+
+##  WEATHER PANEL
+
+##  WeatherPanel : text color
+Colorset 330 fg gray60
+##  WeatherPanel : text bold color
+Colorset 331 fg #547A99
+
+##  SUBPANEL FRAMES
+##  Same basic frame color as the bordercolorset, colorset 12
+Colorset 270 bg gray9
+#Colorset 271 bg gray50
+Colorset 271 bg $[bg.cs12]
+Colorset 272 RootTransparent
+
+##  PANELBAR
+
+##  ActiveColorset and PressColorset for icon-buttons.
+Colorset 273 fg gray60, bg gray40
+Colorset 274 bg gray9
+
+##  DESKTOP INDICATORS
+Colorset 275 bg gray9
+Colorset 276 bg gray9
+Colorset 277 bg gray9
+Colorset 278 bg gray9
+Colorset 279 bg gray9
+Colorset 280 bg gray9
+Colorset 281 bg gray9
+Colorset 282 bg gray9
+Colorset 283 bg gray9
+Colorset 284 bg gray9
+
+##                                                              }}}2
+##   ├Related Styles                                            {{{2
+
+Style PanelStyle FixedSize, WindowListSkip, Sticky, NeverFocus
+
+Style PanelBar UseStyle PanelStyle, Layer $[infostore.toplayer]
+Style PanelBar InitialMapCommand Move +20p ++$[vp.height]p ewmhiwa
+
+Style WeatherPanel !Borders, !Handles, Layer 3, UseStyle PanelStyle
+Style VnstatPanel !Borders, !Handles, Layer 3, UseStyle PanelStyle
+Style SystemInfoPanel !Borders, !Handles, Layer 3, UseStyle PanelStyle
+Style DiskUsagePanel !Borders, !Handles, Layer 3, UseStyle PanelStyle
+Style CalendarPanel !Borders, !Handles, Layer 3, UseStyle PanelStyle
+
+Style TimeAndDate UseStyle Inert, FixedSize, StartsOnDesk 2
+Style TimeAndDate InitialMapCommand Move ++20p -+21p ewmhiwa
+
+Style HiddenPanel !Borders, !Handles, WindowListSkip 
+Style HiddenPanel NeverFocus, FixedSize, Layer $[infostore.bottomlayer], StartsOnDesk 2
+Style HiddenPanel InitialMapCommand Move 0p -+21p ewmhiwa
+
+##                                                              }}}2
+##   └Configs                                                   {{{2
+##     ├PanelBar                                                {{{3
+
+DestroyModuleConfig PanelBar: *
+*PanelBar: Geometry 1320x28
+*PanelBar: Columns 1320
+*PanelBar: Rows 28
+*PanelBar: Padding 0 0
+*PanelBar: BoxSize fixed
+*PanelBar: Frame 0
+*PanelBar: Fore gray60
+*PanelBar: Back gray9
+*PanelBar: Font -*-terminus-bold-r-*--16-*-*-*-*-*-iso10646-1 
+
+##  A 1px line across the top. Contains hidden panels.
+
+*PanelBar: (550x1)
+*PanelBar: (106x1)
+*PanelBar: (1x1, id vnstat, Panel (up, position Button center 0p -3p ) \
+  VnstatPanel "Module FvwmButtons -g -30000-30000 -transient VnstatPanel")
+*PanelBar: (125x1)
+*PanelBar: (1x1, id sysinfo, Panel (up, position Button center 0p -3p ) \
+  SystemInfoPanel "Module FvwmButtons -g -30000-30000 -transient SystemInfoPanel")
+*PanelBar: (115x1)
+*PanelBar: (1x1, id disk, Panel (up, position Button center 0p -3p ) \
+  DiskUsagePanel "Module FvwmButtons -g -30000-30000 -transient DiskUsagePanel")
+*PanelBar: (112x1)
+*PanelBar: (1x1, id weather, Panel (up, position Button center 0p -3p ) \
+  WeatherPanel "Module FvwmButtons -g -30000-30000 -transient WeatherPanel")
+*PanelBar: (105x1)
+*PanelBar: (1x1, id calendar, Panel (up, position Button center 0p -3p ) \
+  CalendarPanel "Module FvwmButtons -g -30000-30000 -transient CalendarPanel")
+*PanelBar: (202x1)
+
+##  Vertical Padding
+*PanelBar: (1320x3)
+
+##  desktop number indicator
+*PanelBar: (10x20)
+*PanelBar: (20x20, Icon pb_workspace.png)
+*PanelBar: (16x20)
+
+*PanelBar: (256x20, Container(Frame 0, Columns 256, Rows 20))
+    *PanelBar: (32x16, Title "1") 
+    *PanelBar: (32x16, Title "2") 
+    *PanelBar: (32x16, Title "3") 
+    *PanelBar: (32x16, Title "4") 
+    *PanelBar: (32x16, Title "5") 
+    *PanelBar: (32x16, Title "6") 
+    *PanelBar: (32x16, Title "7") 
+    *PanelBar: (32x16, Title "8") 
+    *PanelBar: (256x1)
+    *PanelBar: (8x3)
+    *PanelBar: (16x3, Colorset 275)
+    *PanelBar: (16x3)
+    *PanelBar: (16x3, Colorset 276)
+    *PanelBar: (16x3)
+    *PanelBar: (16x3, Colorset 277)
+    *PanelBar: (16x3)
+    *PanelBar: (16x3, Colorset 278)
+    *PanelBar: (16x3)
+    *PanelBar: (16x3, Colorset 279)
+    *PanelBar: (16x3)
+    *PanelBar: (16x3, Colorset 280)
+    *PanelBar: (16x3)
+    *PanelBar: (16x3, Colorset 281)
+    *PanelBar: (16x3)
+    *PanelBar: (16x3, Colorset 282)
+    *PanelBar: (8x3)
+*PanelBar: (End)
+
+##  Center padding
+*PanelBar: (116x20)
+
+##  Volume 
+*PanelBar: (20x20, id vicon, Icon pb_volume-high.png)
+*PanelBar: (15x20)
+*PanelBar: (24x20, id vol, Title (Right) "54%")
+*PanelBar: (55x20)
+
+##  Brightness
+*PanelBar: (20x20, id bicon, Icon pb_brightness-medium.png)
+*PanelBar: (15x20)
+*PanelBar: (24x20, id bri, Title (Right) "54%")
+*PanelBar: (55x20)
+
+##  Network bandwidth
+*PanelBar: (20x20, Icon pb_updown.png, ActiveColorset 273, \
+    Action (Mouse 1) `OpenSubPanel vnstat`)
+*PanelBar: (15x20)
+*PanelBar: (40x20, id net, Title (Right) "+204K")
+*PanelBar: (55x20)
+
+##  CPU Usage
+*PanelBar: (20x20, Center, Icon pb_cpu.png, ActiveColorset 273, \
+    Action (Mouse 1) `OpenSubPanel sysinfo`)
+*PanelBar: (15x20)
+*PanelBar: (24x20, id cpu, Title (Right) "54%")
+*PanelBar: (55x20)
+
+##  Harddrive usage
+*PanelBar: (20x20, Icon pb_harddrive.png, ActiveColorset 273, \
+    Action (Mouse 1) `OpenSubPanel disk`)
+*PanelBar: (15x20)
+*PanelBar: (24x20, id hdd, Title (Right) "33%")
+*PanelBar: (55x20)
+
+##  Weather °
+*PanelBar: (20x20, id wicon, Icon pb_weather-few-clouds.png, \
+    ActiveColorset 273, Action (Mouse 1) `OpenSubPanel weather`)
+*PanelBar: (15x20)
+*PanelBar: (24x20, id celsius, Title (Right) "9C")
+*PanelBar: (45x20)
+
+##  Date + Time
+*PanelBar: (20x20, Icon pb_clock.png, ActiveColorset 273, \
+    Action (Mouse 1) `OpenSubPanel calendar`)
+*PanelBar: (15x20)
+*PanelBar: (50x20, id date, Title (Right) "13 Aug")
+*PanelBar: (16x20)
+
+*PanelBar: (48x20, id mins, Title "02:02:")
+*PanelBar: (16x20, id secs, Title "44")
+*PanelBar: (17x20)
+*PanelBar: (20x20, Icon pb_open-left.png, ActiveColorset 273, \
+    Action (Mouse 1) `HidePanelBar`)
+*PanelBar: (10x20)
+
+##  Padding below
+*PanelBar: (1320x4)
+
+##                                                              }}}3
+##     ├TimeAndDate                                             {{{3
+
+DestroyModuleConfig TimeAndDate: *
+*TimeAndDate: Geometry 224x28
+*TimeAndDate: Columns 224
+*TimeAndDate: Rows 28
+*TimeAndDate: Padding 0 0
+*TimeAndDate: BoxSize fixed
+*TimeAndDate: Frame 0
+*TimeAndDate: Fore gray60
+*TimeAndDate: Back gray9
+*TimeAndDate: Font -*-terminus-bold-r-*--16-*-*-*-*-*-iso10646-1 
+
+##  Vertical Padding
+*TimeAndDate: (224x4)
+
+##  Date + Time
+*TimeAndDate: (10x20)
+*TimeAndDate: (20x20, Icon pb_clock.png)
+*TimeAndDate: (17x20)
+*TimeAndDate: (50x20, id date, Title (Right) "13 Aug")
+*TimeAndDate: (16x20)
+
+*TimeAndDate: (48x20, id mins, Title "02:02:")
+*TimeAndDate: (16x20, id secs, Title "44")
+*TimeAndDate: (17x20)
+*TimeAndDate: (20x20, Icon pb_open-right.png, ActiveColorset 273, \
+    Action (Mouse 1) `ShowPanelBar`)
+*TimeAndDate: (10x20)
+
+##  Padding below
+*TimeAndDate: (224x4)
+
+##                                                              }}}3
+##     ├HiddenPanel                                             {{{3
+
+DestroyModuleConfig HiddenPanel: *
+*HiddenPanel: Geometry 22x32
+*HiddenPanel: Columns 22
+*HiddenPanel: Rows 32
+*HiddenPanel: Padding 0 0
+*HiddenPanel: BoxSize fixed
+*HiddenPanel: Frame 0
+*HiddenPanel: Colorset 272
+*HiddenPanel: Font -*-terminus-bold-r-*--16-*-*-*-*-*-iso10646-1 
+*HiddenPanel: (20x32)
+*HiddenPanel: (2x32, Colorset 271)
+
+##                                                              }}}3
+##     ├WeatherPanel                                            {{{3
+
+DestroyModuleConfig WeatherPanel: *
+*WeatherPanel: Geometry 304x126
+*WeatherPanel: Columns 304
+*WeatherPanel: Rows 126
+*WeatherPanel: Frame 0
+*WeatherPanel: Padding 0 0
+*WeatherPanel: BoxSize fixed
+*WeatherPanel: Font -*-terminus-bold-r-*--16-*-*-*-*-*-iso10646-1
+*WeatherPanel: Back gray9
+
+##  Top border
+*WeatherPanel: (304x2, Colorset 271)
+##  Left border
+*WeatherPanel: (2x115, Colorset 271)
+##  Main panel image
+*WeatherPanel: (300x115, id winfo, Icon panel-weather.png)
+##  Right border
+*WeatherPanel: (2x115, Colorset 271)
+##  Along bottom left, steelblue border
+*WeatherPanel: (144x2, Colorset 271)
+
+##  Small downward arrow on bottom frame.
+*WeatherPanel: (16x9, Container(Frame 0, Columns 16, Rows 9))
+  *WeatherPanel: (2x1, Colorset 271)
+  *WeatherPanel: (12x1, Colorset 270)
+  *WeatherPanel: (2x1, Colorset 271)
+  *WeatherPanel: (3x1, Colorset 271)
+  *WeatherPanel: (10x1, Colorset 270)
+  *WeatherPanel: (3x1, Colorset 271)
+  *WeatherPanel: (1x1, Colorset 272)
+  *WeatherPanel: (3x1, Colorset 271)
+  *WeatherPanel: (8x1, Colorset 270)
+  *WeatherPanel: (3x1, Colorset 271)
+  *WeatherPanel: (1x1, Colorset 272)
+  *WeatherPanel: (2x1, Colorset 272)
+  *WeatherPanel: (3x1, Colorset 271)
+  *WeatherPanel: (6x1, Colorset 270)
+  *WeatherPanel: (3x1, Colorset 271)
+  *WeatherPanel: (2x1, Colorset 272)
+  *WeatherPanel: (3x1, Colorset 272)
+  *WeatherPanel: (3x1, Colorset 271)
+  *WeatherPanel: (4x1, Colorset 270)
+  *WeatherPanel: (3x1, Colorset 271)
+  *WeatherPanel: (3x1, Colorset 272)
+  *WeatherPanel: (4x1, Colorset 272)
+  *WeatherPanel: (3x1, Colorset 271)
+  *WeatherPanel: (2x1, Colorset 270)
+  *WeatherPanel: (3x1, Colorset 271)
+  *WeatherPanel: (4x1, Colorset 272)
+  *WeatherPanel: (5x1, Colorset 272)
+  *WeatherPanel: (6x1, Colorset 271)
+  *WeatherPanel: (5x1, Colorset 272)
+  *WeatherPanel: (6x1, Colorset 272)
+  *WeatherPanel: (4x1, Colorset 271)
+  *WeatherPanel: (6x1, Colorset 272)
+  *WeatherPanel: (7x1, Colorset 272)
+  *WeatherPanel: (2x1, Colorset 271)
+  *WeatherPanel: (7x1, Colorset 272)
+*WeatherPanel: (End)
+
+##  Border along bottom right
+*WeatherPanel: (144x2, Colorset 271)
+##  Along very bottom, transparent
+*WeatherPanel: (144x7, Colorset 272)
+*WeatherPanel: (144x7, Colorset 272)
+
+##                                                              }}}3
+##     ├VnstatPanel                                             {{{3
+
+DestroyModuleConfig VnstatPanel: *
+*VnstatPanel: Geometry 354x156
+*VnstatPanel: Columns 354
+*VnstatPanel: Rows 156
+*VnstatPanel: Frame 0
+*VnstatPanel: Padding 0 0
+*VnstatPanel: BoxSize fixed
+*VnstatPanel: Font -*-terminus-bold-r-*--16-*-*-*-*-*-iso10646-1
+*VnstatPanel: Back gray9
+
+##  Top border
+*VnstatPanel: (354x2, Colorset 271)
+##  Left border
+*VnstatPanel: (2x145, Colorset 271)
+##  Main panel image
+*VnstatPanel: (350x145, id vicon, Icon panel-vnstat.png)
+##  Right border
+*VnstatPanel: (2x145, Colorset 271)
+##  Along bottom left, steelblue border
+*VnstatPanel: (169x2, Colorset 271)
+
+##  Small downward arrow on bottom frame.
+*VnstatPanel: (16x9, Container(Frame 0, Columns 16, Rows 9))
+  *VnstatPanel: (2x1, Colorset 271)
+  *VnstatPanel: (12x1, Colorset 270)
+  *VnstatPanel: (2x1, Colorset 271)
+  *VnstatPanel: (3x1, Colorset 271)
+  *VnstatPanel: (10x1, Colorset 270)
+  *VnstatPanel: (3x1, Colorset 271)
+  *VnstatPanel: (1x1, Colorset 272)
+  *VnstatPanel: (3x1, Colorset 271)
+  *VnstatPanel: (8x1, Colorset 270)
+  *VnstatPanel: (3x1, Colorset 271)
+  *VnstatPanel: (1x1, Colorset 272)
+  *VnstatPanel: (2x1, Colorset 272)
+  *VnstatPanel: (3x1, Colorset 271)
+  *VnstatPanel: (6x1, Colorset 270)
+  *VnstatPanel: (3x1, Colorset 271)
+  *VnstatPanel: (2x1, Colorset 272)
+  *VnstatPanel: (3x1, Colorset 272)
+  *VnstatPanel: (3x1, Colorset 271)
+  *VnstatPanel: (4x1, Colorset 270)
+  *VnstatPanel: (3x1, Colorset 271)
+  *VnstatPanel: (3x1, Colorset 272)
+  *VnstatPanel: (4x1, Colorset 272)
+  *VnstatPanel: (3x1, Colorset 271)
+  *VnstatPanel: (2x1, Colorset 270)
+  *VnstatPanel: (3x1, Colorset 271)
+  *VnstatPanel: (4x1, Colorset 272)
+  *VnstatPanel: (5x1, Colorset 272)
+  *VnstatPanel: (6x1, Colorset 271)
+  *VnstatPanel: (5x1, Colorset 272)
+  *VnstatPanel: (6x1, Colorset 272)
+  *VnstatPanel: (4x1, Colorset 271)
+  *VnstatPanel: (6x1, Colorset 272)
+  *VnstatPanel: (7x1, Colorset 272)
+  *VnstatPanel: (2x1, Colorset 271)
+  *VnstatPanel: (7x1, Colorset 272)
+*VnstatPanel: (End)
+
+##  Along bottom right, steelblue border
+*VnstatPanel: (169x2, Colorset 271)
+##  Along bottom, transparent
+*VnstatPanel: (169x7, Colorset 272)
+*VnstatPanel: (169x7, Colorset 272)
+
+##                                                              }}}3
+##     ├SystemInfoPanel                                         {{{3
+
+DestroyModuleConfig SystemInfoPanel: *
+*SystemInfoPanel: Geometry 284x141
+*SystemInfoPanel: Columns 284
+*SystemInfoPanel: Rows 141
+*SystemInfoPanel: Frame 0
+*SystemInfoPanel: Padding 0 0
+*SystemInfoPanel: BoxSize fixed
+*SystemInfoPanel: Font -*-terminus-bold-r-*--16-*-*-*-*-*-iso10646-1
+*SystemInfoPanel: Back gray9
+
+##  Top border
+*SystemInfoPanel: (284x2, Colorset 271)
+##  Left border
+*SystemInfoPanel: (2x130, Colorset 271)
+##  Main panel image
+*SystemInfoPanel: (280x130, id sicon, Icon panel-systeminfo.png)
+##  Right border
+*SystemInfoPanel: (2x130, Colorset 271)
+##  Border along bottom left
+*SystemInfoPanel: (134x2, Colorset 271)
+
+##  Small downward arrow on bottom frame.
+*SystemInfoPanel: (16x9, Container(Frame 0, Columns 16, Rows 9))
+  *SystemInfoPanel: (2x1, Colorset 271)
+  *SystemInfoPanel: (12x1, Colorset 270)
+  *SystemInfoPanel: (2x1, Colorset 271)
+  *SystemInfoPanel: (3x1, Colorset 271)
+  *SystemInfoPanel: (10x1, Colorset 270)
+  *SystemInfoPanel: (3x1, Colorset 271)
+  *SystemInfoPanel: (1x1, Colorset 272)
+  *SystemInfoPanel: (3x1, Colorset 271)
+  *SystemInfoPanel: (8x1, Colorset 270)
+  *SystemInfoPanel: (3x1, Colorset 271)
+  *SystemInfoPanel: (1x1, Colorset 272)
+  *SystemInfoPanel: (2x1, Colorset 272)
+  *SystemInfoPanel: (3x1, Colorset 271)
+  *SystemInfoPanel: (6x1, Colorset 270)
+  *SystemInfoPanel: (3x1, Colorset 271)
+  *SystemInfoPanel: (2x1, Colorset 272)
+  *SystemInfoPanel: (3x1, Colorset 272)
+  *SystemInfoPanel: (3x1, Colorset 271)
+  *SystemInfoPanel: (4x1, Colorset 270)
+  *SystemInfoPanel: (3x1, Colorset 271)
+  *SystemInfoPanel: (3x1, Colorset 272)
+  *SystemInfoPanel: (4x1, Colorset 272)
+  *SystemInfoPanel: (3x1, Colorset 271)
+  *SystemInfoPanel: (2x1, Colorset 270)
+  *SystemInfoPanel: (3x1, Colorset 271)
+  *SystemInfoPanel: (4x1, Colorset 272)
+  *SystemInfoPanel: (5x1, Colorset 272)
+  *SystemInfoPanel: (6x1, Colorset 271)
+  *SystemInfoPanel: (5x1, Colorset 272)
+  *SystemInfoPanel: (6x1, Colorset 272)
+  *SystemInfoPanel: (4x1, Colorset 271)
+  *SystemInfoPanel: (6x1, Colorset 272)
+  *SystemInfoPanel: (7x1, Colorset 272)
+  *SystemInfoPanel: (2x1, Colorset 271)
+  *SystemInfoPanel: (7x1, Colorset 272)
+*SystemInfoPanel: (End)
+
+##  Border along bottom right
+*SystemInfoPanel: (134x2, Colorset 271)
+
+##  Along bottom, transparent
+*SystemInfoPanel: (134x7, Colorset 272)
+*SystemInfoPanel: (134x7, Colorset 272)
+
+##                                                              }}}3
+##     ├DiskUsagePanel                                          {{{3
+
+DestroyModuleConfig DiskUsagePanel: *
+*DiskUsagePanel: Geometry 294x161
+*DiskUsagePanel: Columns 294
+*DiskUsagePanel: Rows 161
+*DiskUsagePanel: Frame 0
+*DiskUsagePanel: Padding 0 0
+*DiskUsagePanel: BoxSize fixed
+*DiskUsagePanel: Font -*-terminus-bold-r-*--16-*-*-*-*-*-iso10646-1
+*DiskUsagePanel: Back gray9
+
+##  Top border
+*DiskUsagePanel: (294x2, Colorset 271)
+##  Left border
+*DiskUsagePanel: (2x150, Colorset 271)
+##  Main panel image
+*DiskUsagePanel: (290x150, id dicon, Icon panel-disk-usage.png)
+##  Right border
+*DiskUsagePanel: (2x150, Colorset 271)
+##  Border along bottom right
+*DiskUsagePanel: (139x2, Colorset 271)
+
+##  Small downward arrow on bottom frame.
+*DiskUsagePanel: (16x9, Container(Frame 0, Columns 16, Rows 9))
+  *DiskUsagePanel: (2x1, Colorset 271)
+  *DiskUsagePanel: (12x1, Colorset 270)
+  *DiskUsagePanel: (2x1, Colorset 271)
+  *DiskUsagePanel: (3x1, Colorset 271)
+  *DiskUsagePanel: (10x1, Colorset 270)
+  *DiskUsagePanel: (3x1, Colorset 271)
+  *DiskUsagePanel: (1x1, Colorset 272)
+  *DiskUsagePanel: (3x1, Colorset 271)
+  *DiskUsagePanel: (8x1, Colorset 270)
+  *DiskUsagePanel: (3x1, Colorset 271)
+  *DiskUsagePanel: (1x1, Colorset 272)
+  *DiskUsagePanel: (2x1, Colorset 272)
+  *DiskUsagePanel: (3x1, Colorset 271)
+  *DiskUsagePanel: (6x1, Colorset 270)
+  *DiskUsagePanel: (3x1, Colorset 271)
+  *DiskUsagePanel: (2x1, Colorset 272)
+  *DiskUsagePanel: (3x1, Colorset 272)
+  *DiskUsagePanel: (3x1, Colorset 271)
+  *DiskUsagePanel: (4x1, Colorset 270)
+  *DiskUsagePanel: (3x1, Colorset 271)
+  *DiskUsagePanel: (3x1, Colorset 272)
+  *DiskUsagePanel: (4x1, Colorset 272)
+  *DiskUsagePanel: (3x1, Colorset 271)
+  *DiskUsagePanel: (2x1, Colorset 270)
+  *DiskUsagePanel: (3x1, Colorset 271)
+  *DiskUsagePanel: (4x1, Colorset 272)
+  *DiskUsagePanel: (5x1, Colorset 272)
+  *DiskUsagePanel: (6x1, Colorset 271)
+  *DiskUsagePanel: (5x1, Colorset 272)
+  *DiskUsagePanel: (6x1, Colorset 272)
+  *DiskUsagePanel: (4x1, Colorset 271)
+  *DiskUsagePanel: (6x1, Colorset 272)
+  *DiskUsagePanel: (7x1, Colorset 272)
+  *DiskUsagePanel: (2x1, Colorset 271)
+  *DiskUsagePanel: (7x1, Colorset 272)
+*DiskUsagePanel: (End)
+
+##  Border along bottom right
+*DiskUsagePanel: (139x2, Colorset 271)
+
+##  Along bottom, transparent
+*DiskUsagePanel: (139x7, Colorset 272)
+*DiskUsagePanel: (139x7, Colorset 272)
+
+##                                                              }}}3
+##     └CalendarPanel                                           {{{3
+
+DestroyModuleConfig CalendarPanel: *
+*CalendarPanel: Geometry 249x271
+*CalendarPanel: Columns 249
+*CalendarPanel: Rows 271
+*CalendarPanel: Frame 0
+*CalendarPanel: Padding 0 0
+*CalendarPanel: BoxSize fixed
+*CalendarPanel: Font -*-terminus-bold-r-*--16-*-*-*-*-*-iso10646-1
+*CalendarPanel: Back gray9
+
+##  Top border
+*CalendarPanel: (249x2, Colorset 271)
+##  Left border
+*CalendarPanel: (2x260, Colorset 271)
+##  Main panel image
+*CalendarPanel: (245x260, id cicon, Icon panel-calendar.png)
+##  Right border
+*CalendarPanel: (2x260, Colorset 271)
+##  Border along bottom right
+*CalendarPanel: (116x2, Colorset 271)
+
+##  Small downward arrow on bottom frame.
+*CalendarPanel: (16x9, Container(Frame 0, Columns 16, Rows 9))
+  *CalendarPanel: (2x1, Colorset 271)
+  *CalendarPanel: (12x1, Colorset 270)
+  *CalendarPanel: (2x1, Colorset 271)
+  *CalendarPanel: (3x1, Colorset 271)
+  *CalendarPanel: (10x1, Colorset 270)
+  *CalendarPanel: (3x1, Colorset 271)
+  *CalendarPanel: (1x1, Colorset 272)
+  *CalendarPanel: (3x1, Colorset 271)
+  *CalendarPanel: (8x1, Colorset 270)
+  *CalendarPanel: (3x1, Colorset 271)
+  *CalendarPanel: (1x1, Colorset 272)
+  *CalendarPanel: (2x1, Colorset 272)
+  *CalendarPanel: (3x1, Colorset 271)
+  *CalendarPanel: (6x1, Colorset 270)
+  *CalendarPanel: (3x1, Colorset 271)
+  *CalendarPanel: (2x1, Colorset 272)
+  *CalendarPanel: (3x1, Colorset 272)
+  *CalendarPanel: (3x1, Colorset 271)
+  *CalendarPanel: (4x1, Colorset 270)
+  *CalendarPanel: (3x1, Colorset 271)
+  *CalendarPanel: (3x1, Colorset 272)
+  *CalendarPanel: (4x1, Colorset 272)
+  *CalendarPanel: (3x1, Colorset 271)
+  *CalendarPanel: (2x1, Colorset 270)
+  *CalendarPanel: (3x1, Colorset 271)
+  *CalendarPanel: (4x1, Colorset 272)
+  *CalendarPanel: (5x1, Colorset 272)
+  *CalendarPanel: (6x1, Colorset 271)
+  *CalendarPanel: (5x1, Colorset 272)
+  *CalendarPanel: (6x1, Colorset 272)
+  *CalendarPanel: (4x1, Colorset 271)
+  *CalendarPanel: (6x1, Colorset 272)
+  *CalendarPanel: (7x1, Colorset 272)
+  *CalendarPanel: (2x1, Colorset 271)
+  *CalendarPanel: (7x1, Colorset 272)
+*CalendarPanel: (End)
+
+##  Border along bottom right
+*CalendarPanel: (117x2, Colorset 271)
+
+##  Along bottom, transparent
+*CalendarPanel: (116x7, Colorset 272)
+*CalendarPanel: (117x7, Colorset 272)
+
+##                                                              }}}3
+##                                                              }}}2
+##                                                              }}}1
+
+##  NcmpcppGui                                                  {{{1
+##   ├Related Functions                                         {{{2
+
+##  Start ncmpcpp in a urxvt terminal.
+DestroyFunc ExecNcmpcpp
+AddToFunc ExecNcmpcpp I -Exec exec \
+    urxvt -T myncmpcpp -n myncmpcpp -lsp 4 -g 60x12-33300-33300 \
+    -bg grey9 -fn terminus-bold-16 -fb terminus-bold-16 -e sh -c \
+    "addcolor </tmp/fvwm/ncmpcpp.colors && exec \
+    ncmpcpp -c $HOME/.ncmpcpp/config"
+
+##  An mpc idleloop polls UpdateBar whenever MPD status changes.
+DestroyFunc MPC-IdleLoop
+AddToFunc MPC-IdleLoop
++ I Schedule 1500 -Exec exec sh -c "  \
+    YTREWQ821= mpc idleloop | while read arg ; do \
+        FvwmCommand 'SendToModule UpdateBar update' ; done"
+
+##  Toggle MPD between play and pause via mpc
+DestroyFunc MPC-PlayPause
+AddToFunc MPC-PlayPause I -PipeRead ' \
+    arg=`mpc | sed -nr "2s/ .+//p"` ; \
+    [ "$arg" = "[playing]" ] && \
+        echo "Exec mpc pause 1>/dev/null" || \
+        echo "Exec mpc play 1>/dev/null" '
+
+DestroyFunc StopNcmpcppGui
+AddToFunc StopNcmpcppGui
++ I Exec pkill -f YTREWQ821
++ I KillModule FvwmButtons NcmpcppGui
++ I KillModule UpdateBar
+
+DestroyFunc StartNcmpcppGui
+AddToFunc StartNcmpcppGui
++ I StopNcmpcppGui
++ I Schedule 2000 MPC-IdleLoop
++ I Schedule 500 Module UpdateBar
++ I Schedule 1000 Module FvwmButtons NcmpcppGui
++ I Schedule 3000 SendToModule UpdateBar update
+
+##                                                              }}}2
+##   └Config                                                    {{{2
+
+DestroyModuleConfig NcmpcppGui: *
+*NcmpcppGui: Geometry 804x340
+*NcmpcppGui: Columns 804
+*NcmpcppGui: Rows 340
+*NcmpcppGui: Padding 0 0
+*NcmpcppGui: BoxSize fixed
+*NcmpcppGui: Frame 0
+*NcmpcppGui: Colorset 149 
+*NcmpcppGui: Font tamsyn20bold 
+
+##  Padding along top
+*NcmpcppGui: (804x20)
+
+##  Padding to LHS of ncmpcpp
+*NcmpcppGui: (20x260)
+
+##  A window within which urxvt/ncmpcpp is swallowed. 
+*NcmpcppGui: (484x260, Container(Frame 0, Columns 484, Rows 260))
+    *NcmpcppGui: (484x2, Colorset 153)
+    *NcmpcppGui: (2x256, Colorset 153)
+    *NcmpcppGui: (480x16, Colorset 150)
+    *NcmpcppGui: (2x256, Colorset 153)
+    *NcmpcppGui: (480x240, Swallow myncmpcpp ExecNcmpcpp )
+    *NcmpcppGui: (484x2, Colorset 153)
+*NcmpcppGui: (End)
+
+##  Padding between ncmpcpp and coverart
+*NcmpcppGui: (20x260)
+
+##  A window within which coverart is shown 
+*NcmpcppGui: (260x260, Container(Frame 0, Columns 260, Rows 260))
+    *NcmpcppGui: (260x2, Colorset 153)
+    *NcmpcppGui: (2x256, Colorset 153)
+    *NcmpcppGui: (256x256, id coverart, Icon cover.png)
+    *NcmpcppGui: (2x256, Colorset 153)
+    *NcmpcppGui: (260x2, Colorset 153)
+*NcmpcppGui: (End)
+
+##  Padding to RHS of coverart
+*NcmpcppGui: (20x260)
+
+##  Padding just below ncmpccp and coverart
+*NcmpcppGui: (804x16)
+
+##  Block of icons - play/pause etc.
+*NcmpcppGui: (35x28)
+*NcmpcppGui: (28x28, Icon media-skip-backward.png, ActiveColorset 151, \
+    PressColorset 152, Action (Mouse 1) "Exec mpc prev 1>/dev/null" )
+*NcmpcppGui: (15x28)
+*NcmpcppGui: (28x28, Icon media-playback-stop.png, ActiveColorset 151, \
+    PressColorset 152, Action (Mouse 1) "Exec mpc stop 1>/dev/null" )
+*NcmpcppGui: (15x28)
+*NcmpcppGui: (28x28, id playback, Icon media-playback-start.png, \
+    ActiveColorset 151, PressColorset 152, Action (Mouse 1) MPC-PlayPause)
+*NcmpcppGui: (15x28)
+*NcmpcppGui: (28x28, Icon media-skip-forward.png, ActiveColorset 151, \
+    PressColorset 152, Action (Mouse 1) "Exec mpc next 1>/dev/null" )
+*NcmpcppGui: (28x28)
+
+##  The progress bar
+*NcmpcppGui: (400x28, Container(Frame 0, Columns 400, Rows 28))
+    *NcmpcppGui: (400x2, Colorset 153)
+    *NcmpcppGui: (2x24, Colorset 153)
+    *NcmpcppGui: (8x8, Colorset 150)
+    *NcmpcppGui: (380x8, Colorset 150)
+    *NcmpcppGui: (8x8, Colorset 150)
+    *NcmpcppGui: (2x24, Colorset 153)
+    *NcmpcppGui: (8x8, Colorset 150)
+    *NcmpcppGui: (380x8, Swallow (UseOld, NoRespawn) ProgressBar Nop )
+    *NcmpcppGui: (8x8, Colorset 150)
+    *NcmpcppGui: (8x8, Colorset 150)
+    *NcmpcppGui: (380x8, Colorset 150)
+    *NcmpcppGui: (8x8, Colorset 150)
+    *NcmpcppGui: (400x2, Colorset 153)
+*NcmpcppGui: (End)
+
+##  Padding between probar and elapsed.
+*NcmpcppGui: (20x28)
+#*NcmpcppGui: (25x28)
+
+##  Elapsed timer etv.
+*NcmpcppGui: (144x28, Container(Frame 0, Columns 144, Rows 28))
+    *NcmpcppGui: (144x2, Colorset 153)
+    *NcmpcppGui: (2x24, Colorset 153)
+    *NcmpcppGui: (132x24, Colorset 150, id elapsed, Title (Right) "---/---")
+    *NcmpcppGui: (8x24, Colorset 150)
+    *NcmpcppGui: (2x24, Colorset 153)
+    *NcmpcppGui: (144x2, Colorset 153)
+*NcmpcppGui: (End)
+
+##  Padded to RHS of elapsed.
+*NcmpcppGui: (20x28)
+
+##  Padding just below probar and elapsed
+*NcmpcppGui: (804x16)
+
+##                                                              }}}2
+##                                                              }}}1
+
+##  SystemMonitor                                               {{{1
+##   ├Config                                                    {{{2
+
+DestroyModuleConfig SystemMonitor: *
+*SystemMonitor: Geometry 224x364
+*SystemMonitor: Columns 224
+*SystemMonitor: Rows 364
+*SystemMonitor: Padding 0 0
+*SystemMonitor: BoxSize fixed
+*SystemMonitor: Frame 0
+*SystemMonitor: Back gray9
+*SystemMonitor: Font -*-terminus-bold-r-*--16-*-*-*-*-*-iso10646-1 
+
+*SystemMonitor: (224x17)
+*SystemMonitor: (10x50)
+*SystemMonitor: (50x50, Icon sg_cpu.png)
+*SystemMonitor: (10x50)
+*SystemMonitor: (139x50, Id cpu, Icon cpu.png)
+*SystemMonitor: (15x50)
+*SystemMonitor: (224x20)
+
+*SystemMonitor: (10x50)
+*SystemMonitor: (50x50, Icon sg_memory.png)
+*SystemMonitor: (10x50)
+*SystemMonitor: (139x50, Id mem, Icon mem.png)
+*SystemMonitor: (15x50)
+*SystemMonitor: (224x20)
+
+*SystemMonitor: (10x50)
+*SystemMonitor: (50x50, Icon sg_readwrite.png)
+*SystemMonitor: (10x50)
+*SystemMonitor: (139x50, Id disk, Icon disk.png)
+*SystemMonitor: (15x50)
+*SystemMonitor: (224x20)
+
+*SystemMonitor: (10x50)
+*SystemMonitor: (50x50, Icon sg_iowait.png)
+*SystemMonitor: (10x50)
+*SystemMonitor: (139x50, Id iow, Icon iow.png)
+*SystemMonitor: (15x50)
+*SystemMonitor: (224x20)
+
+*SystemMonitor: (10x50)
+*SystemMonitor: (50x50, Icon sg_updown.png)
+*SystemMonitor: (10x50)
+*SystemMonitor: (139x50, Id net, Icon net.png)
+*SystemMonitor: (15x50)
+*SystemMonitor: (224x17)
+
+##                                                              }}}2
+##   └Related Functions                                         {{{2
+
+DestroyFunc StartSystemMonitor
+AddToFunc StartSystemMonitor
++ I StopSystemMonitor
++ I Schedule 2000 Module UpdateSystemMonitor
++ I Schedule 2000 Module FvwmButtons SystemMonitor
+
+DestroyFunc StopSystemMonitor
+AddToFunc StopSystemMonitor
++ I KillModule UpdateSystemMonitor
++ I KillModule FvwmButtons SystemMonitor
+
+##                                                              }}}2
+##                                                              }}}1
+
+##  Processes                                                   {{{1
+##   ├Related Colorsets                                         {{{2
+
+##  Headers color
+Colorset 210 fg #547A99, bg gray9
+##  3 text colors
+Colorset 211 fg gray70, bg gray9
+Colorset 212 fg gray60, bg gray9
+Colorset 213 fg gray50, bg gray9
+
+##                                                              }}}2
+##   ├Related Functions                                         {{{2
+
+DestroyFunc StopProcesses
+AddToFunc StopProcesses
++ I KillModule FvwmButtons Processes
++ I KillModule UpdateProcesses
++ I Exec pkill -f "conky.*/tmp/fvwm/conkyrc"
+
+DestroyFunc StartProcesses
+AddToFunc StartProcesses
++ I StopProcesses
++ I Schedule 500 Module FvwmButtons Processes
++ I Schedule 1000 Module UpdateProcesses
+
+##                                                              }}}2
+##   └Config                                                    {{{2
+
+DestroyModuleConfig Processes: *
+*Processes: Geometry 224x278
+*Processes: Columns 224
+*Processes: Rows 278
+*Processes: Padding 0 0
+*Processes: BoxSize fixed
+*Processes: Frame 0
+*Processes: Back gray9
+*Processes: Fore gray60
+*Processes: Font -*-terminus-bold-r-*--16-*-*-*-*-*-iso10646-1 
+
+*Processes: (16x278)
+*Processes: (192x14)
+*Processes: (16x278)
+
+*Processes: (24x19, Colorset 210, Title (Left) "CPU")
+*Processes: (136x19)
+*Processes: (32x19, Colorset 210, Title (Right) "CPU%")
+*Processes: (144x19, Colorset 211, id label0, Title (Left) " ")
+*Processes: (8x19)
+*Processes: (40x19, Colorset 211, id val0, Title (Right) "0.0")
+*Processes: (144x19, Colorset 212, id label1, Title (Left) " ")
+*Processes: (8x19)
+*Processes: (40x19, Colorset 212, id val1, Title (Right) "0.0")
+*Processes: (144x19, Colorset 213, id label2, Title (Left) " ")
+*Processes: (8x19)
+*Processes: (40x19, Colorset 213, id val2, Title (Right) "0.0")
+
+*Processes: (192x12)
+
+*Processes: (48x19, Colorset 210, Title (Left) "MEMORY")
+*Processes: (120x19)
+*Processes: (24x19, Colorset 210, Title (Right) "MEM")
+*Processes: (144x19, Colorset 211, id label3, Title (Left) " ")
+*Processes: (8x19)
+*Processes: (40x19, Colorset 211, id val3, Title (Right) "0K")
+*Processes: (144x19, Colorset 212, id label4, Title (Left) " ")
+*Processes: (8x19)
+*Processes: (40x19, Colorset 212, id val4, Title (Right) "0K")
+*Processes: (144x19, Colorset 213, id label5, Title (Left) " ")
+*Processes: (8x19)
+*Processes: (40x19, Colorset 213, id val5, Title (Right) "0K")
+
+*Processes: (192x12)
+
+*Processes: (48x19, Colorset 210, Title (Left) "IN/OUT")
+*Processes: (104x19)
+*Processes: (40x19, Colorset 210, Title (Right) "RD/WR")
+*Processes: (144x19, Colorset 211, id label6, Title (Left) " ")
+*Processes: (48x19, Colorset 211, id val6, Title (Right) "+0B")
+*Processes: (144x19, Colorset 212, id label7, Title (Left) " ")
+*Processes: (48x19, Colorset 212, id val7, Title (Right) "+0B")
+*Processes: (144x19, Colorset 213, id label8, Title (Left) " ")
+*Processes: (48x19, Colorset 213, id val8, Title (Right) "+0B")
+
+*Processes: (192x12)
+
+##                                                              }}}2
+##                                                              }}}1
+
+##  Other Modules                                               {{{1
+##   ├ClipMenu                                                  {{{2
+
+##  Clipboard manager module. Period (usecs) is the update period. 
+##  Title, Height, Width define ClipMenu, the clipboard menu. 
+##  Remaining configs are the cmnds triggered by certain datatypes
+##  when they get pushed to the system clipboard.
+
+DestroyModuleConfig ClipMenu: *
+*ClipMenu: Period 1000000
+*ClipMenu: Title "System\ Clipboard"
+*ClipMenu: Height 22
+*ClipMenu: Width 65
+*ClipMenu: Youtube UrlMenu
+*ClipMenu: Url UrlMenu
+*ClipMenu: Html UrlMenu
+*ClipMenu: Magnet AddTorrent
+*ClipMenu: Torrent AddTorrent
+*ClipMenu: Video VideoMenu
+
+##                                                              }}}2
+##   ├Thumbnail                                                 {{{2
+
+##  Caches a thumbnail for the current window. These thumbs are later 
+##  used to Iconify windows. Width + Height are the thumbnail geometry.
+##  Tries is the number of attempts before Thumbnail aborts. Expire 
+##  is the age of a thumb in secs before it needs to be updated.
+##  Such that a window will not be thumbnailed again if it already  
+##  has a recent thumbnail stored.
+
+DestroyModuleConfig Thumbnail: *
+*Thumbnail: Width 205
+*Thumbnail: Height 120
+*Thumbnail: Tries 3
+*Thumbnail: Expire 100
+
+##                                                              }}}2
+##   ├FetchInfo                                                 {{{2
+
+DestroyFunc FetchInfo
+AddToFunc FetchInfo I Exec exec \
+    urxvt -T myfetchinfo -n myfetchinfo -lsp 4 -g 35x11-33300-33300 \
+    -bg grey9 -fg gray60 -fn terminus-bold-16 -fb terminus-bold-16 \
+    --color4 "#547A99" -e $[FVWM_USERDIR]/bin/fetchinfo
+
+DestroyFunc StartFetchInfo
+AddToFunc StartFetchInfo
++ I None (FetchInfo) Schedule 500 Module FvwmButtons FetchInfo
++ I Next (FetchInfo) FlipFocus
+
+Style FetchInfo InitialMapCommand Move 50-50w 50-50w-10p 
+
+DestroyModuleConfig FetchInfo: *
+*FetchInfo: Geometry 470x220
+*FetchInfo: Columns 470
+*FetchInfo: Rows 220
+*FetchInfo: Frame 0
+*FetchInfo: Padding 0 0
+*FetchInfo: BoxSize fixed
+*FetchInfo: Font -*-terminus-bold-r-*--16-*-*-*-*-*-iso10646-1
+*FetchInfo: Back gray9
+
+*FetchInfo: (20x220)
+*FetchInfo: (170x25)
+*FetchInfo: (280x220, Swallow myfetchinfo FetchInfo )
+*FetchInfo: (160x160, Icon debian-swirl-logo-160x160.png)
+*FetchInfo: (10x160)
+*FetchInfo: (170x35)
+
+##                                                              }}}2
+##   └FvwmIdent                                                 {{{2
+
+DestroyModuleConfig FvwmIdent: *
+*FvwmIdent: Font tamsyn20bold 
+*FvwmIdent: Colorset 26
+
+##                                                              }}}2
+##                                                              }}}1
+

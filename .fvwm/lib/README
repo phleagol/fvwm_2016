@@ -1,0 +1,4 @@
+
+This folder contains perl script which use Fvwm::Module.
+These fvwmperl modules must be invoked from within FVWM.
+

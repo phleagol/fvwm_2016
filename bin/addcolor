@@ -1,0 +1,16 @@
+#!/usr/bin/perl -w
+
+use local::lib ;
+use Term::ExtendedColor::Xresources qw( set_xterm_color ) ;
+
+while (<>) {
+    if (/^\D*color(\d+):?\s+#?(\w+)/) {
+        set_xterm_color({ $1 => $2}) ;
+    }
+}
+# print "color$1: #$2\n" ;
+# set_xterm_color({ $1 => $2}) if (/^\D*(\d+)\s+#?(\w+)/) 
+
+
+
+

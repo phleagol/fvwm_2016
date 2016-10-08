@@ -1,0 +1,21 @@
+# This file last created by FvwmForm-Form on: Mon Dec 28 07:49:15 NZDT 2015.
+*FvwmFormDefault: Font terminus-bold-16
+*FvwmFormDefault: InputFont terminus-bold-16
+*FvwmFormDefault: ButtonFont terminus-bold-16
+*FvwmFormDefault: TimeoutFont terminus-bold-16
+*FvwmFormDefault: Fore gray60
+*FvwmFormDefault: Back Gray9
+*FvwmFormDefault: Colorset -1
+*FvwmFormDefault: ItemFore Light Gray
+*FvwmFormDefault: ItemBack Gray9
+*FvwmFormDefault: ItemColorset -1
+*FvwmFormDefault: ButtonPointer hand2
+*FvwmFormDefault: ButtonInPointer hand2
+*FvwmFormDefault: InputPointer xterm
+*FvwmFormDefault: ActivateOnPress on
+*FvwmFormDefault: ButtonPointerFore white
+*FvwmFormDefault: ButtonPointerBack black
+*FvwmFormDefault: ButtonInPointerFore black
+*FvwmFormDefault: ButtonInPointerBack white
+*FvwmFormDefault: InputPointerFore white
+*FvwmFormDefault: InputPointerBack black

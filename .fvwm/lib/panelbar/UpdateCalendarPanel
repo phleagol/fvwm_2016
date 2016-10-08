@@ -1,0 +1,392 @@
+#!/usr/bin/perl
+
+##  Useful webpages :-
+##  http://www.imagemagick.org/script/command-line-processing.php
+##  http://www.imagemagick.org/script/perl-magick.php
+##  http://www.imagemagick.org/Usage/draw/#strokewidth
+
+use strict ;
+use warnings ;
+use utf8 ;
+use v5.22 ;
+use lib `fvwm-perllib dir` ;
+
+use FVWM::Module ;
+use Image::Magick ;             ##  libimage-magick-perl
+use Calendar::Simple ;          ##  libcalendar-simple-perl
+use Astro::MoonPhase ;;         ##  via CPAN 
+use Path::Tiny ;                ##  libpath-tiny-perl
+#use Data::Dump qw( dump ) ;
+
+##  Name of the FvwmButtons calendar panel.
+my $panelmodname = "CalendarPanel" ;
+##  Image compression setting.
+my $quality = 100 ;
+##  Output image filename.
+my $outfile = path("$ENV{FVWM_USERDIR}/images/panel-calendar.png") ;
+
+##  Large and small font descriptors.
+my $fontdir = "/usr/share/fonts/X11/misc" ;
+my $fontsmall = {
+    file => "$fontdir/ter-u16b_iso-8859-1.pcf.gz", 
+    width => 8, height => 16,
+} ;
+my $fontlarge = {
+    file => "$fontdir/ter-u18b_iso-8859-1.pcf.gz", 
+    width => 10, height => 19,
+} ;
+
+##  Moon-phase icons
+my $icondir = "$ENV{FVWM_USERDIR}/images/panelbar/calendar" ;
+my @moonicons = qw( new-moon.png first-quarter-moon.png 
+    full-moon.png last-quarter-moon.png ) ;
+
+##  Title labels
+my @months = ("J A N U A R Y", "F E B R U A R Y",  "M A R C H", 
+    "A P R I L", "M A Y", "J U N E", "J U L Y", "A U G U S T",
+    "S E P T E M B E R",  "O C T O B E R", "N O V E M B E R", 
+    "D E C E M B E R" ) ;
+
+####  Calendar dimensions
+
+##  Height of header.
+my $header_h = 30 ;
+##  Width/height of cells.
+my $cell_w = 30 ;
+my $cell_h = 30 ;
+
+##  Start the FVWM module.
+my $modname = "UpdateCalendarPanel" ;
+my $module = new FVWM::Module(
+    Name => $modname,
+    Debug => 0,
+) ;
+
+##  Get colorset data from FVWM.
+my $cs_tracker = $module->track("Colorsets") ;
+my $cs_hash = $cs_tracker->data ;
+$cs_tracker->stop ;
+
+##  Calendar colors
+my $title_fg = get_color(310,"fg") ;
+my $header_fg = get_color(311,"fg") ; 
+my $weekday_fg = get_color(312,"fg") ; 
+my $currentday_fg = get_color(313,"fg") ; 
+my $dim_text_color = get_color(314,"fg") ; 
+my $weekend_bg = get_color(315,"bg") ;
+my $weekend_fg = get_color(315,"fg") ; 
+my $grid_color = get_color(316,"fg") ; 
+
+####  MAIN
+
+##  Create a blank canvas.
+my $image = Image::Magick->new ;
+$image->Set(size => "245x260") ;
+$image->ReadImage("canvas:gray9") ;
+
+##  Annotate the main title 
+my $m = $months[(localtime)[4]] ;
+$image = center_justified(116, 25, $title_fg, $fontlarge, $m, $image) ;
+
+##  Draw the calendar grid and numbers
+my $calendar = get_calendar() ;
+$image->Composite(image => $calendar, x => 16, y => 40) ;
+
+##  Draw the moon phases legend.
+my $moon = get_moonphases() ;
+$image->Composite(image => $moon, x => 26, y => 230) ;
+
+##  Save the finished calendar.
+save_image($image, $outfile) ;
+
+##  Update image in the FvwmButtons module.
+my $cmd = "SendToModule $panelmodname ChangeButton cicon Icon " ;
+$cmd .= $outfile->basename ;
+$module->send($cmd) ;
+
+exit ;
+
+####  SUBROUTINES
+
+sub get_color {
+    my $cs_num = shift ;
+    my $opt = shift ;
+    my $color = $cs_hash->{$cs_num}->{$opt} ;
+    return sprintf('#%x',$color) ;
+}
+
+##  Draws a calendar, and returns a perlmagick object.
+sub get_calendar  {
+
+    ##  Calendar width/height
+    my $cal_w = $cell_w * 7 ;
+    my $cal_h = $cell_h * 5 + $header_h ;
+
+    ##  Canvas width, height, geometry, color
+    my $canvas_w = $cal_w + 1 ;
+    my $canvas_h = $cal_h + 1 ;
+    my $canvas_geometry = "${canvas_w}x$canvas_h" ;
+    my $canvas_bg = "gray9" ;
+
+    ##  Create blank calendar canvas.
+    my $calendar = Image::Magick->new ;
+    $calendar->Set(size => $canvas_geometry) ;
+    $calendar->ReadImage("canvas:$canvas_bg") ;
+
+    ##  Annotate labels for the header.
+    my @days = qw( S M T W T F S ) ;
+    for (my $idx = 0, my $xx = 19, my $yy = 22 ; $idx <= $#days ; $idx++, $xx += $cell_w)  {
+        $calendar = right_justified(
+            $xx, $yy, $header_fg, $fontlarge, $days[$idx], $calendar
+        ) ;
+    }
+
+    ##  Obtain calendar layouts for the current month, and for
+    ##  the weeks that immediately precede and follow it.
+    my $currentday = (localtime)[3] ;
+    my @thismonth = calendar() ;
+    my @previousweek = get_previous_week() ;
+    my @followingweek = get_following_week() ;
+
+    ##  Offsets to position text within the cell.
+    my $offsetx = 24 ;
+    my $offsety = 21 ; 
+
+    ##  Iterate through the weeks and days of the month.
+    for (my $yy = $header_h, my $wknum = 0 ; $wknum <= $#thismonth ; $wknum++, $yy += $cell_h )  {
+        for (my $xx = 0, my $daynum = 0 ; $daynum <= 7 ; $daynum++, $xx += $cell_w )  {
+
+            ##  The actual day of this month for this calendar cell.
+            my $today = $thismonth[$wknum]->[$daynum] ;
+
+            ##  If this day is undefined, then...
+            if (not defined $today)  {
+
+                ##  get the day number be for the immediately preceding/following week.
+                $today = $previousweek[$daynum] if $wknum == 0 ;
+                $today = $followingweek[$daynum] if $wknum == $#thismonth ;
+                if (defined $today )  {
+                    $calendar = right_justified(
+                        $xx+$offsetx, $yy+$offsety, $dim_text_color, $fontsmall, $today, $calendar
+                    ) ;
+                }
+
+            ##  elsewise,today is already properly defined, so...
+            } else  { 
+
+                ##  Set default color for normal week days.
+                my $color = $weekday_fg ;
+
+                ##  Weekend days or the current day may look different.
+                if ($daynum =~ /0|6/ or $today == $currentday)  {
+                    $color = $weekend_fg ;
+                    $color = $currentday_fg if $today == $currentday ;
+                    my $x2 = $xx + $cell_w ;
+                    my $y2 = $yy + $cell_h ;
+                    $calendar->Draw(
+                        primitive => "rectangle", fill => $weekend_bg, points => "$xx,$yy $x2,$y2",
+                    ) ;
+                }
+
+                ##  Place todays number within the cell.
+                $calendar = right_justified(
+                    $xx+$offsetx, $yy+$offsety, $color, $fontsmall, $today, $calendar
+                ) ;
+            }
+        }
+    }
+
+    ##  Draw vertical lines.
+    for (my $x = 0 ; $x <= $cal_w ; $x += $cell_w)  {
+        $calendar = draw_line($calendar, $grid_color,"$x,$header_h $x,$cal_h") ;
+    }
+
+    ##  Draw horizontal lines.
+    for (my $y = $header_h ; $y <= $cal_h ; $y += $cell_h)  {
+        $calendar = draw_line($calendar, $grid_color, "0,$y $cal_w,$y") ;
+    }
+
+    ##  Draw line along top border
+    $calendar = draw_line($calendar, $grid_color, "0,0 $cal_w,0") ;
+    ##  Draw lines along sides of the header.
+    $calendar = draw_line($calendar, $grid_color, "0,0 0,$header_h") ;
+    $calendar = draw_line($calendar, $grid_color, "$cal_w,0 $cal_w,$header_h") ;
+
+    return $calendar ;
+}
+
+##  Calculate the moon-phases, and draw it as a legend for below the 
+##  calendar. Returns a perlmagick object.
+sub get_moonphases  {
+
+    ##  Calculate moon phases for 30 days before/after today.
+    my $start = time() - 86400 * 30 ;
+    my $stop = time() + 86400 * 30 ;
+    (my $phase, my @times) = phaselist($start, $stop) ;
+
+    my @moonphases = () ;
+    my $month = (localtime())[4] ;
+
+    ##  Discard moon-phases not for the current month.
+    foreach my $time (@times) {
+        my $d = (localtime($time))[3] ;
+        my $m = (localtime($time))[4] ;
+        if ($m == $month) {
+            my $z = { phase => $phase, day => $d } ;
+            push @moonphases, $z if $#moonphases < 3 ;
+            $phase = ++$phase%4 ;
+        }
+    }
+
+    ##  Create blank canvas. Calculate width to be a snug fit.
+    my $moon = Image::Magick->new ;
+    my $ww = scalar(@moonphases)*55 - 10 ;
+    $moon->Set(size => "${ww}x20") ;
+    $moon->ReadImage("canvas:gray9") ;
+
+    ##  Draw an image strip to display the @moonphases info.
+    my $xx = 0 ;
+    my $num = 0 ;
+    foreach my $mphase (@moonphases)  {
+        my $day = $mphase->{day} ;
+        my $icon = load_image("$icondir/$moonicons[$mphase->{phase}]") ;
+        $moon->Composite(image => $icon, x => $xx, y => 0) ;
+        $xx += 20 ;
+        $moon = left_justified(
+            $xx, 13, "gray60", $fontsmall, ":$day", $moon
+        ) ;
+        $xx += 30 ;
+        last if $num++ > 3 ;
+        
+    }
+    return $moon ;
+}
+
+sub draw_line {
+    my $img = shift ;
+    my $color = shift ;
+    my $points = shift ;
+    
+    $img->Draw(
+        primitive => "line", fill => $color,
+        points => $points, antialias => "true",
+    ) ;
+
+    return $img ;
+}
+
+sub get_previous_week {
+    my $m = (localtime)[4] ;
+    my $y = (localtime)[5] + 1900 ;
+
+    if ($m == 0)  { $m = 12 ; $y-- } ;
+    my @last = calendar($m, $y) ;
+    my @prevweek = @{ $last[$#last] } ;
+    return @prevweek ;
+}
+
+sub get_following_week  {
+    my $m = (localtime)[4] + 2 ;
+    my $y = (localtime)[5] + 1900 ;
+
+    if ($m == 13)  { $m = 1 ; $y++ } ;
+    my @nextmonth = calendar($m, $y) ;
+    my @followingweek = @{ $nextmonth[0] } ;
+    return @followingweek ;
+}
+
+
+sub right_justified {
+
+    my $xpos = shift ;
+    my $ypos = shift ;
+    my $color = shift ;
+    my $font = shift ;
+    my $text = shift ;
+    my $img = shift ;
+
+    $xpos -= $font->{width} * length($text) ;
+
+    return 0 if $img->Annotate(
+        x => $xpos,
+        y => $ypos,
+        gravity => "NorthWest",
+        font => $font->{file},
+        fill => $color, 
+        text => $text,
+    ) ;
+
+    return $img ;
+}
+
+sub left_justified {
+
+    my $xpos = shift ;
+    my $ypos = shift ;
+    my $color = shift ;
+    my $font = shift ;
+    my $text = shift ;
+    my $img = shift ;
+
+    return 0 if $img->Annotate(
+        x => $xpos,
+        y => $ypos,
+        gravity => "NorthWest",
+        font => $font->{file},
+        fill => $color, 
+        text => $text,
+    ) ;
+
+    return $img ;
+}
+
+sub center_justified {
+
+    my $xpos = shift ;
+    my $ypos = shift ;
+    my $color = shift ;
+    my $font = shift ;
+    my $text = shift ;
+    my $img = shift ;
+
+    $xpos -= $font->{width} * int(length($text)/2) ;
+
+    return 0 if $img->Annotate(
+        x => $xpos,
+        y => $ypos,
+        gravity => "NorthWest",
+        font => $font->{file},
+        fill => $color, 
+        text => $text,
+    ) ;
+
+    return $img ;
+}
+
+sub load_image {
+
+    my $err = 1 ;
+    my $image = Image::Magick->New() ;
+    my $imgfile = shift ;
+
+    open(IMAGE, $imgfile) or return 0 ;
+    $err = $image->Read(file=>\*IMAGE);
+    close(IMAGE);
+    if ($err) { return 0 } else { return $image } ;
+}
+
+sub save_image  {
+
+    my $image = shift ;
+    my $outfile = shift ;
+
+    open(IMAGE, ">$outfile") ;
+    return 0 if $image->Write(
+        file => \*IMAGE, 
+        filename => $outfile, 
+        quality => $quality,
+    ) ;
+
+    return 1 ;
+}
+

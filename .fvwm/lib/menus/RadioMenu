@@ -1,0 +1,158 @@
+#!/usr/bin/perl
+
+##  Using mpv instead of mpg123 since I also listen to AAC streams.
+
+use utf8 ;
+use strict ;
+use warnings ;
+use v5.20 ;
+
+use lib `fvwm-perllib dir`;
+use FVWM::Module;
+use Path::Tiny ;
+use Data::Dump qw( dump ) ;
+
+##  To send commands to fvwm
+my $module = new FVWM::Module(
+    Name => 'RadioMenu',
+    Debug => 0,
+);
+
+##  This module's name.
+my $modname = $module->name ;
+
+##  Action requested by user.
+my $command = $ENV{ARG1} ;
+##  Index number of the selected station
+my $index = $ENV{ARG2} || 0 ;
+##  Config file for radio stations etc.
+my $config = path("$ENV{FVWM_USERDIR}/.radiorc") ;
+##  Name of menus to use for fvwm commands.
+my $menuname = "RadioMenu" ;
+my $menuname_alt = "RadioMenuTitled" ;
+
+##  Equals zero if radio is stopped.
+my $status = if_playing() ;
+##  Tick icon used for station currently playing
+my $tickicon = "%mm_tick.png%" ;
+
+##  Store radio station info to an array of hashes.
+my $num = 0 ;
+my @radios = () ;
+
+foreach ($config->lines) {
+    if (/(^\w.+),(\w.+),(http.+),(http[^\s]+)\s*$/) {
+        $radios[$num]->{notiflabel} = $1 ;
+        $radios[$num]->{menulabel} = $2 ;
+        $radios[$num]->{url} = $3 ;
+        $radios[$num++]->{stream} = $4 ;
+    }
+}
+
+my $index_max = $num ;
+my $index_next = ($index+1)%$index_max ;
+my $index_previous = ($index-1)%$index_max ;
+#$index_next = 0 if $index_next == $index_max ; 
+
+##  say STDERR "index : $index" ;
+##  say STDERR "index_max : $index_max" ;
+##  say STDERR "index_next : $index_next" ; 
+##  say STDERR "index_previous : $index_previous" ;
+
+####  Processe the input command
+
+my %cmd = (
+    menu => sub { open_menu() },
+    stop => sub { kill_radio() },
+    play => sub { play_radio($index) },
+    next => sub { play_radio($index_next) },
+    previous => sub { play_radio($index_previous) },
+) ;
+
+if (defined $cmd{$command}) { $cmd{$command}() 
+} else { $module->showMessage("$modname: unknown command \"$command\"") }
+
+exit ;
+
+    
+####  SUBROUTINES
+
+sub sendcmd {
+    foreach (@_) {
+        my $msg = "AddToMenu $menuname $_" ;
+        $module->send($msg) ;
+        $msg = "AddToMenu $menuname_alt $_" ;
+        $module->send($msg) ;
+        #$module->showMessage("debug: $msg") ;
+    } 
+}
+
+##  Returns 0 if the mpv radio is not playing.
+sub if_playing  {
+    my $pattern = "^mpv --no-ytdl --no-terminal *--cache=auto --cache-initial=0" ;
+    my $mpv = readpipe("pgrep -f \"$pattern\" | wc -l ") ;
+    chomp $mpv ;
+    return $mpv ;
+}
+
+sub kill_radio {
+    my $pattern = "'^mpv --no-ytdl --no-terminal *--cache=auto --cache-initial=0 '" ;
+    readpipe("pkill -f $pattern 2>&1 1>/dev/null") ;
+}
+
+sub play_radio  {
+
+    my $idx = shift ;
+    my $lab = $radios[$idx]->{notiflabel} ;
+    my $url = $radios[$idx]->{stream} ;
+
+    my $notif = "$lab" ;
+    my $notif_cmd = 'FF-Notify 3 Nop "' . $notif . '"' ;
+
+    my $mpv_cmd = 'mpv --no-ytdl --no-terminal --cache=auto ' ;
+    $mpv_cmd .= '--cache-initial=0 "' . $url . '" 2>&1 1>/dev/null' ;
+
+    ##  If the radio is already playing, then stop it.
+    kill_radio() ;
+
+    ##  Store the index of the selected radio 
+    $module->send("InfoStoreAdd radio_index $idx") ;
+
+    ##  FvwmForm Notify the radio station
+    $module->send( $notif_cmd ) ;
+
+    ##  mpv command to start the radio
+    exec("$mpv_cmd ") ; 
+}
+
+
+##  Build a radio menu for fvwm.
+sub open_menu  {
+
+    ##  A menu entry for each radio station.
+    for ($num = 0 ; $num <= $#radios ; $num++)  {
+
+        my $label = $radios[$num]->{menulabel} ;
+        ##  a tick icon for the currently playing station only
+        my $icon = $status && $num == $index ? $tickicon : "" ;
+        ##  this fvwm cmnd to run if the menu entry is selected
+        sendcmd("\"$icon$label\" PlayRadio $num") ;
+    }
+
+    ##  Menu separator
+    sendcmd("\"\" Nop") ;
+
+    ##  if mpv radio is playing, then do this, else...
+    if ( $status )  {
+        my $icon = "%mm_information.png%" ;
+        my $cmd =  "OpenFirefoxTab \"$radios[$index]->{url}\"" ;
+        sendcmd("\"$icon&Now Playing\" $cmd") ;
+        $icon = "%mm_application-exit.png%" ;
+        sendcmd("\"${icon}&Stop Radio\" StopTrack") ;
+    } else {
+        ##  if mpv radio not playing
+        my $icon = "%mm_gvim.png%" ;
+        sendcmd("\"${icon}&Edit config\" OpenVim $config") ;
+    }
+}
+

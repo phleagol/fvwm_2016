@@ -1,0 +1,419 @@
+#!/usr/bin/perl
+
+##  Purpose: to build an image that shows vnstat stats for the last week 
+##    as a histogram, and tabulates weekly vnstat summarys below that.
+
+##  First, xml data is obtained from vnstat. The stats for rx+tx usage
+##  are kept, and stored in an array according to date. The stats are
+##  then written as a data file, which is used to plot a histogram 
+##  with gnuplot. Imagemagick then creates a blank canvas, on which
+##  the plot is overlayed. More vnstat weekly summaries are annotated
+##  below the plot. The imagemagick image is finally written to outfile.
+
+##  Useful webpages :-
+##  http://www.imagemagick.org/script/command-line-processing.php
+##  http://www.imagemagick.org/script/perl-magick.php
+
+use strict ;
+use warnings ;
+use utf8 ;
+use v5.22 ;
+use lib `fvwm-perllib dir` ;
+
+use FVWM::Module ;
+use Time::Piece ;
+use Time::Seconds ;
+use IPC::Run qw( run ) ;        ##  libipc-run-perl
+use Path::Tiny ;                ##  libpath-tiny-perl
+use Image::Magick ;             ##  libimage-magick-perl
+use XML::LibXML::Simple () ;    ##  libxml-libxml-simple-perl
+#use Data::Dump qw( dump ) ;
+
+##  Name of the FvwmButtons vnstat panel.
+my $panelmodname = "VnstatPanel" ;
+##  Output filename for final imagemagick image.
+my $imagemagick_outfile = path("$ENV{FVWM_USERDIR}/images/panel-vnstat.png") ;
+##  Size of blank canvas used by imagemagick
+my $canvas_geometry = "350x145" ;
+##  Size of graph produced by gnuplot
+my $plot_geometry_x = 350 ;
+my $plot_geometry_y = 100 ;
+##  Image compression setting for imagemagick.
+my $quality = 100 ;
+
+##  Output filename for interim gnuplot image.
+my $plot_outfile = Path::Tiny->tempfile(TEMPLATE => 'plot_XXXXXX', suffix => '.png') ;
+##  Temporary file to store raw vnstat data.
+my $datafile = Path::Tiny->tempfile(TEMPLATE => 'vnstat_XXXXXX', suffix => '.dat') ;
+
+##  Start the FVWM module.
+my $modname = "UpdateVnstatPanel" ;
+my $module = new FVWM::Module(
+    Name => $modname,
+    Debug => 0,
+) ;
+
+##  Get FVWM colorset data.
+my $cs_tracker = $module->track("Colorsets") ;
+my $cs_hash = $cs_tracker->data ;
+$cs_tracker->stop ;
+
+##  Colors for gnuplot (set via fvwm colorsets)
+
+my $plotcolor_tx = get_color(300,"fg") ;
+my $plotcolor_rx = get_color(301,"fg") ;
+my $plotcolor_box_border = get_color(302,"fg") ;
+my $plotcolor_tics_axes = get_color(303,"fg") ;
+
+##  Colors for text, bold and plain.
+my $text_bold_color = get_color(304,"fg") ; 
+my $text_color_1 = get_color(305,"fg") ; 
+my $text_color_2 = get_color(306,"fg") ; 
+my $text_color_3 = get_color(307,"fg") ; 
+
+##  Font descriptor
+my $fontdir = "/usr/share/fonts/X11/misc" ;
+my $fontsmall = {
+    file => "$fontdir/ter-u16b_iso-8859-1.pcf.gz", 
+    width => 8, height => 16,
+} ;
+
+####  MAIN
+
+##  Get data array from vnstat.
+my @vnstat = get_vnstat_array() ;
+
+##  Write data file for the graph. Also obtain yrange values for the plot.
+my ($yrange_max, $yrange_mid) = write_datafile($datafile) ;
+
+##  Obtain xrange values for the plot.
+my ($xrange_start, $xrange_end) = get_xrange_values() ;
+
+##  Plot the vnstat data for the last 7 days
+my $plot = define_gnuplot() ;
+my @cmd = qw( gnuplot ) ;
+my $out = my $err = "" ;
+run \@cmd, \$plot, \$out, \$err ;
+
+##  Imagemagick - create a blank canvas.
+my $image = Image::Magick->new ;
+$image->Set(size => $canvas_geometry) ;
+$image->ReadImage("canvas:gray9") ;
+
+##  Load graph image, and overlay onto the canvas. 
+my $xx1 = -3 ;
+my $yy1 = 20 ;
+my $graph = load_image($plot_outfile) ;
+$image->Composite(image => $graph, x => $xx1, y => $yy1) ;
+
+##  Annotate the main title 
+my $xx2 = int($plot_geometry_x/2) ;
+my $yy2 = 20 ;
+my $text = "VNSTAT : LAST 7 DAYS" ;
+$image = center_justified($xx2, $yy2, $text_color_1, $fontsmall, $text, $image) ;
+
+##  Annotate text for the key 
+
+my $xx3 = 100 ;
+my $yy3 = $yy1 + $plot_geometry_y + 15 ;
+$image = left_justified($xx3, $yy3, $text_color_1, $fontsmall, "TX: ", $image) ;
+
+my $xx4 = $xx3 + 100 ;
+my $yy4 = $yy3 ;
+$image = left_justified($xx4, $yy4, $text_color_1, $fontsmall, "RX: ", $image) ;
+
+##  Draw rectangles for the key 
+
+my $xx5 = $xx3 + 30 ;
+my $yy5 = $yy3 - 10 ;
+my $xx6 = $xx3 + 50 ;
+my $yy6 = $yy3 ;
+$image->Draw(
+    primitive => "rectangle",
+    fill => $plotcolor_tx,
+    stroke => $plotcolor_box_border, 
+    strokewidth => 1,
+    points => "$xx5,$yy5 $xx6,$yy6",
+) ;
+
+my $xx7 = $xx4 + 30 ;
+my $yy7 = $yy4 - 10 ;
+my $xx8 = $xx4 + 50 ;
+my $yy8 = $yy4 ;
+$image->Draw(
+    primitive => "rectangle",
+    fill => $plotcolor_rx,
+    stroke => $plotcolor_box_border, 
+    strokewidth => 1,
+    points => "$xx7,$yy7 $xx8,$yy8",
+) ;
+
+##  Save the finished panel.
+save_image($image, $imagemagick_outfile) ;
+
+##  Update image in the FvwmButtons module.
+my $cmd = "SendToModule $panelmodname ChangeButton vicon Icon " ;
+$cmd .= $imagemagick_outfile->basename ;
+$module->send($cmd) ;
+
+exit ;
+
+
+####  SUBROUTINES
+
+sub get_color {
+    my $cs_num = shift ;
+    my $opt = shift ;
+    my $color = $cs_hash->{$cs_num}->{$opt} ;
+    return sprintf('#%x',$color) ;
+}
+
+sub get_vnstat_array  {
+
+    ##  An empty array to store rx/tx for the last 30 days.
+    my @net = () ;
+    for (my $idx = 0, my $t = Time::Piece->new ; $idx <= 29 ; $idx++, $t -= ONE_DAY)  {
+        my $date = $t->strftime("%Y%m%d") ;
+        $net[$idx] = { rx => 0, tx => 0, date => $date } ;
+    }
+
+    ##  Update the array with raw data from vnstat
+    my $raw_vnstat = get_vnstat_data() ;
+    foreach my $idx (0..29)  {
+        if (defined $raw_vnstat->{interface}->{traffic}->{days}->{day}->{$idx})  {
+            my $rx = $raw_vnstat->{interface}->{traffic}->{days}->{day}->{$idx}->{rx} ;
+            my $tx = $raw_vnstat->{interface}->{traffic}->{days}->{day}->{$idx}->{tx} ;
+            $net[$idx]->{rx} = $rx ;
+            $net[$idx]->{tx} = $tx ;
+        }
+    }
+    return @net ;
+}
+
+sub get_vnstat_data {
+    my $xml = readpipe("vnstat --xml d 2>/dev/null") ;
+    my $xs   = XML::LibXML::Simple->new() ;
+    my $data = $xs->XMLin($xml,) ;
+    return $data ;
+}
+
+
+sub vnstat_summary  {
+
+    my $first = shift ;
+    my $last = shift ;
+    my ($rxtotal, $txtotal, $total) = (0,0,0) ;
+
+    ##  Calc rx/tx totals over the period.
+    for (my $idx = $first ; $idx < $last ; $idx++)  {
+        my $rx = $vnstat[$idx]->{rx} ;
+        my $tx = $vnstat[$idx]->{tx} ;
+        $rxtotal += $rx ;
+        $txtotal += $tx ;
+        $total += $rx + $tx ;
+    }
+
+    ##  Reexpress the totals as Gb (gigabytes) or Mb (megabytes).
+    foreach ($rxtotal, $txtotal, $total)  {
+        my $num = $_ ;
+        if ($num >= 1022976) {
+            $_ = nearest(.1, $num/1048576) . "Gb" 
+        } else {
+            $_ = nearest(.1,$num/1024) . "Mb" 
+        }
+    }
+
+    return ($rxtotal, $txtotal, $total) ;
+}
+
+sub write_datafile  {
+
+    my $datafile = shift ;
+
+    ##  Initial yrange values for gnuplot
+    my $yrange_max = 1 ;
+    my $yrange_mid = .5 ;
+
+    ##  Write a datafile of vnstat for last 7 days.
+    $datafile->remove ;
+    foreach my $idx (0..6)  {
+
+        ##  rx/tx is already recorded in kilobytes. Change that to gigabytes.
+        my $rx = nearest(.001, $vnstat[$idx]->{rx}/1048576) ;
+        my $tx = nearest(.001, $vnstat[$idx]->{tx}/1048576) ;
+
+        $yrange_max = int($rx)+1 if $rx > $yrange_max ;
+        $yrange_max = int($tx)+1 if $tx > $yrange_max ;
+        $yrange_mid = $yrange_max/2 ;
+
+        ##  append to the data file.
+        my $data = $vnstat[$idx]->{date} . "00,$tx,$rx\n" ;
+        $datafile->append($data) ;
+    }
+
+    ##  return the yrange values.
+    return ($yrange_max, $yrange_mid) ;
+}
+
+##  Compute xrange values for the plot
+sub get_xrange_values {
+    my $today = Time::Piece->new->ymd ;
+    $today = Time::Piece->strptime($today, '%Y-%m-%d');
+    my $xrange_start = $today ;
+    $xrange_start -= ONE_DAY * 7 ;
+    $xrange_start += ONE_HOUR * 9 ;
+    $xrange_start = $xrange_start->strftime("%Y%m%d%H") ;
+    my $xrange_end = $today ;
+    $xrange_end += ONE_HOUR * 12 ;
+    $xrange_end = $xrange_end->strftime("%Y%m%d%H") ;
+    return ($xrange_start, $xrange_end) ;
+}
+
+sub right_justified {
+
+    my $xpos = shift ;
+    my $ypos = shift ;
+    my $color = shift ;
+    my $font = shift ;
+    my $text = shift ;
+    my $img = shift ;
+
+    $xpos -= $font->{width} * length($text) ;
+
+    return 0 if $img->Annotate(
+        x => $xpos,
+        y => $ypos,
+        gravity => "NorthWest",
+        font => $font->{file},
+        fill => $color, 
+        text => $text,
+    ) ;
+
+    return $img ;
+}
+
+
+sub left_justified {
+
+    my $xpos = shift ;
+    my $ypos = shift ;
+    my $color = shift ;
+    my $font = shift ;
+    my $text = shift ;
+    my $img = shift ;
+
+    return 0 if $img->Annotate(
+        x => $xpos,
+        y => $ypos,
+        gravity => "NorthWest",
+        font => $font->{file},
+        fill => $color, 
+        text => $text,
+    ) ;
+
+    return $img ;
+}
+
+sub center_justified {
+
+    my $xpos = shift ;
+    my $ypos = shift ;
+    my $color = shift ;
+    my $font = shift ;
+    my $text = shift ;
+    my $img = shift ;
+
+    $xpos -= int($font->{width} * length($text)/2) ;
+
+    return 0 if $img->Annotate(
+        x => $xpos,
+        y => $ypos,
+        gravity => "NorthWest",
+        font => $font->{file},
+        fill => $color, 
+        text => $text,
+    ) ;
+
+    return $img ;
+}
+
+sub load_image {
+
+    my $err = 1 ;
+    my $image = Image::Magick->New() ;
+    my $imgfile = shift ;
+
+    open(IMAGE, $imgfile) or return 0 ;
+    $err = $image->Read(file=>\*IMAGE);
+    close(IMAGE);
+    if ($err) { return 0 } else { return $image } ;
+}
+
+sub save_image  {
+
+    my $image = shift ;
+    my $outfile = shift ;
+
+    open(IMAGE, ">$outfile") ;
+    return 0 if $image->Write(
+        file => \*IMAGE, 
+        filename => $outfile, 
+        quality => $quality,
+    ) ;
+
+    return 1 ;
+}
+
+##  Cribbed from Math::Round
+sub nearest {
+    my $targ = abs(shift);
+    my $half = 0.50000000000008 ;
+    my @res  = map {
+        if ($_ >= 0) { $targ * int(($_ + $half * $targ) / $targ); }
+        else { $targ * POSIX::ceil(($_ - $half * $targ) / $targ); }
+     } @_ ;
+
+     return (wantarray) ? @res : $res[0] ;
+}
+
+##  It would have been nice to plot the data with one of the gnuplot 
+##  modules for perl. However, those modules are too limited for this
+##  kind of plot. So it is written as a simple gnuplot script.
+
+sub define_gnuplot  {
+
+return qq{
+set terminal png size $plot_geometry_x,$plot_geometry_y \\
+    font "Droid Sans Mono,10" transparent truecolor
+set output '$plot_outfile'
+set datafile separator ","
+
+set tmargin at screen 0.90
+set rmargin at screen 0.96
+set lmargin at screen 0.14
+set bmargin at screen 0.20
+
+unset key
+set border 3 lc rgbcolor "$plotcolor_tics_axes" lw 2
+
+set style data boxes
+set boxwidth 0.36 relative
+set style fill solid border lc rgbcolor "$plotcolor_box_border"
+
+set timefmt "%Y%m%d%H"
+set xdata time
+set xtics format "%a"
+
+set xtics nomirror out scale 2,0 offset 0,.5
+set ytics nomirror out scale 2,2 offset graph \\
+    0.03,0 (0, "" $yrange_mid, "${yrange_max}Gb" $yrange_max) 
+
+set xrange [\"$xrange_start\":\"$xrange_end\"]
+set yrange[0:$yrange_max]
+
+plot '$datafile' \\
+     using (timecolumn(1)-15550):2 lc rgbcolor "$plotcolor_tx", \\
+  '' using (timecolumn(1)+15550):3 lc rgbcolor "$plotcolor_rx"    
+
+} ; }
+

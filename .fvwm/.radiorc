@@ -1,0 +1,18 @@
+# vim: sts=0:noet:
+# <label>,<info>,<url>
+#
+
+Classic FM,Classic FM,http://www.classicfm.com/radio/playlist/,http://media-ice.musicradio.com/ClassicFMMP3.m3u
+BBC Radio 3,BBC Radio 3,http://www.bbc.co.uk/radio3,http://www.surfmusic.de/m3u/bbc-radio-3,1945.m3u
+The Classical Station,TheStation,http://theclassicalstation.org/playing_wed.shtml,http://www.ibiblio.org/wcpe/wcpe.pls
+All Classical Portland,AllClassical,http://www.allclassical.org,http://allclassical-ice.streamguys.com/ac96k.m3u
+Venice Classical Radio,Venice Classic,http://www.veniceclassicradio.eu/en/,http://109.123.116.202:8010/stream
+Classical KDFC,www.kdfc.com,http://www.kdfc.com,http://provisioning.streamtheworld.com/pls/KDFCFM.pls
+Classical WETA,www.weta.org,http://www.weta.org/fm,http://38.100.128.106:8000/fmlive
+WKSU Classical Music,www.wksu.org,http://wksu.org/wksu-classical-playlist/,http://www.wksu.org/listen/wksu3.pls
+Swiss Radio Classical,Swiss Radio,http://swissradio.ch/menu/classical/classical.htm,http://stream2137.init7.net:80
+Klassik Radio,Klassik Radio,http://www.klassikradio.de/programm/was-lauft-gerade,http://stream.klassikradio.de/live/mp3-192/stream.klassikradio.de/play.pls
+
+Radio Klassik Stephansdom,Stephansdom,https://radioklassik.at/programm/sendungsdetails/#nowplaying,http://streaming.lxcluster.at:8000/live128.m3u
+RTBF Musiq3,RTBF Musiq3,http://www.rtbf.be/musiq3/,http://musiq3.ice.rtbf.be/musiq3-128.mp3.m3u
+

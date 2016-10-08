@@ -1,0 +1,45 @@
+## vim: sts=0:noet:syntax=fvwm:
+
+Style Firefox* InitialMapCommand Start-FF
+Style Firefox* Title, StartsOnDesk 3
+
+DestroyFunc Start-FF
+AddToFunc Start-FF
+#+ I ThisWindow Debug Start-FF
++ I ThisWindow (Transient) FF-Transient
++ I ThisWindow (!Transient) FF-Normal
+
+DestroyFunc FF-Normal
+AddToFunc FF-Normal
+#+ I ThisWindow Debug FF-Normal
++ I ThisWindow (Navigator) FF-Main
+
+DestroyFunc FF-Main
+AddToFunc FF-Main
+#+ I ThisWindow Debug FF-Main 1
+#+ I ThisWindow (Maximized) UnMaximize
++ I UnMaximize
+#+ I ThisWindow Debug FF-Main 2
++ I Resize frame 85 80
++ I Move 50-50w 50-50w-10p ewmhiwa 
++ I Schedule 2000 FullMaximize
++ I Break 2
+
+DestroyFunc FF-Transient
+AddToFunc FF-Transient
+#+ I ThisWindow Debug  FF-Transient 
++ I Move 50-50w 50-50w ewmhiwa 
++ I Break
+
+
+
+
+
+
+
+
+
+
+
+
+

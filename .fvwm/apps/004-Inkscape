@@ -1,0 +1,41 @@
+## vim: sts=0:noet:syntax=fvwm:
+
+##  Class    : Inkscape 
+##  Resource : Inkscape
+
+
+
+Style *nkscape* InitialMapCommand Start-IS
+Style *nkscape* Title, State 0, State 1
+
+
+DestroyFunc Start-IS
+AddToFunc Start-IS
+#+ I Echo Start-IS
++ I ThisWindow (Transient) IS-Transient
++ I ThisWindow (!Transient) IS-Normal
+
+DestroyFunc IS-Normal
+AddToFunc IS-Normal
++ I Echo IS-Normal $[w.id] $[w.name]
++ I ThisWindow ("*Inkscape") Schedule 1000 IS-Main
+
+DestroyFunc IS-Main
+AddToFunc IS-Main
++ I Echo IS-Main $[w.id] $[w.name]
++ I ThisWindow UnMaximize
++ I Resize frame 80 80
++ I Move 50-50w 50-50w-10p ewmhiwa 
++ I Schedule 2000 FullMaximize
++ I Break 2
+
+DestroyFunc IS-Transient
+AddToFunc IS-Transient
++ I Echo IS-Transient $[w.id] $[w.name]
+
+
+
+
+
+
+

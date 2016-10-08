@@ -1,0 +1,308 @@
+#!/usr/bin/perl
+
+##  Useful webpages :-
+##  http://www.imagemagick.org/script/command-line-processing.php
+##  http://www.imagemagick.org/script/perl-magick.php
+##  http://openweathermap.org/weather-conditions
+##  http://openweathermap.org/forecast5
+
+use strict ;
+use warnings ;
+use utf8 ;
+use v5.22 ;
+use lib `fvwm-perllib dir` ;
+
+use FVWM::Module ;
+use XML::LibXML::Simple () ;
+use Image::Magick ;             ##  libimage-magick-perl
+use IPC::Run qw( run ) ;        ##  libipc-run-perl
+use Path::Tiny ;                ##  libpath-tiny-perl
+use Data::Dump qw( dump ) ;
+
+##  Name of the FvwmButtons weather panel.
+my $panelmodname = "WeatherPanel" ;
+##  Output image filepath
+my $outfile = path("$ENV{FVWM_USERDIR}/images/panel-weather.png") ;
+##  Output image size
+my $canvas_geom = "300x115" ;
+##  A file to which the current weather written.
+my $weatherfile = path("$ENV{FVWM_USERDIR}/.weather") ;
+##  Folder path to weather icons.
+my $icondir = "$ENV{FVWM_USERDIR}/images/panelbar/weather" ;
+##  Main weather icon size.
+my $iconsize = "80x80" ;
+##  Canvas background color
+my $back = "gray9" ;
+##  Imagemagick quality setting.
+my $quality = 99 ;
+
+##  Start the FVWM module.
+my $modname = "UpdateWeatherPanel" ;
+my $module = new FVWM::Module(
+    Name => $modname,
+    Debug => 0,
+) ;
+
+##  Start up the colorset tracker.
+my $cs_tracker = $module->track("Colorsets") ;
+my $cs_hash = $cs_tracker->data ;
+
+##  Colors for text etc.
+my $text_color = get_color(330,"fg") ; 
+my $bold_color = get_color(331,"fg") ; 
+
+##  Font descriptors.
+
+my $fontdir = "/usr/share/fonts/X11/misc" ;
+my $fontsmall = {
+    file => "$fontdir/ter-u16b_iso-8859-1.pcf.gz", 
+    width => 8, height => 16,
+} ;
+my $fontlarge = {
+    file => "$fontdir/ter-u18b_iso-8859-1.pcf.gz", 
+    width => 10, height => 19,
+} ;
+
+##  Exit unless internet is available.
+exit unless pingtest() ;
+
+####  GET CURRENT WEATHER INFO
+
+##  Fetch weather data from openweathermap.com
+my $data = get_weather_data() ;
+##  Weather icon filepath.
+my $iconfile = $icondir . "/" . $data->{weather}->{icon} . ".png" ;
+##  General overview.
+my $overview = $data->{weather}->{value} ;
+$overview =~ s/([\w']+)/\u\L$1/g ;
+##  Wind
+my $direction = $data->{wind}->{direction}->{code} ;
+my $speed = $data->{wind}->{speed}->{value} * 3.6 ;
+$speed = nearest(.1, $speed) ;
+##  Rain
+my $rain = 0 ;
+my $mode = $data->{precipitation}->{mode} ;
+unless ($mode eq "no") {
+    my $rain = $data->{precipitation}->{value} ;
+    $rain = nearest(.01, $rain) ;
+}
+##  Temperature
+my $celsius = $data->{temperature}->{max} ;
+$celsius = nearest(.1, $celsius) ;
+##  Humidity
+my $humid = $data->{humidity}->{value} ;
+
+write_weather_info() ;
+
+####  DRAW PANEL
+
+##  Create blank canvas.
+my $image = Image::Magick->new ;
+$image->Set(size => $canvas_geom) ;
+$image->ReadImage("canvas:$back") ;
+
+##  Overlay canvas with the weather icon .
+my $icon = load_image($iconfile) ;
+$icon->AdaptiveResize( geometry => $iconsize) ;
+$image->Composite(image => $icon, x => 20, y => 30) ;
+
+##  Add the main title - a general weather overview.
+my $xx1 = 150 ; my $yy1 = 24 ;
+$image = center_justified($xx1, $yy1, $text_color, $fontlarge, $overview, $image) ;
+
+##  Calc positions for subtitles
+my $yoffset = 19 ;
+my $xx2 = 125 ; my $yy2 = 45 ;
+my $xx3 = $xx2 ; my $yy3 = $yy2 + $yoffset ;
+my $xx4 = $xx3 ; my $yy4 = $yy3 + $yoffset ;
+my $xx5 = $xx4 ; my $yy5 = $yy4 + $yoffset ;
+
+##  Annotate the subtitles
+$image = left_justified($xx2, $yy2, $bold_color, $fontsmall, "TEMP:", $image) ;
+$image = left_justified($xx3, $yy3, $bold_color, $fontsmall, "WIND:", $image) ;
+$image = left_justified($xx4, $yy4, $bold_color, $fontsmall, "RAIN:", $image) ;
+$image = left_justified($xx5, $yy5, $bold_color, $fontsmall, "HUMIDITY:", $image) ;
+
+##  4 annotated value fields for temperature, wind etc.
+
+##  Calc positions for value fields.
+my $xx6 = 280 ; my $yy6 = 45 ;
+my $xx7 = $xx6 ; my $yy7 = $yy6 + $yoffset ;
+my $xx8 = $xx7 ; my $yy8 = $yy7 + $yoffset ;
+my $xx9 = $xx8 ; my $yy9 = $yy8 + $yoffset ;
+
+##  Annotate the value fields.
+
+my $text = "${celsius}°C" ;
+$image = right_justified($xx6, $yy6, $text_color, $fontsmall, $text, $image) ;
+
+$text = "${speed}kph $direction" ;
+$image = right_justified($xx7, $yy7, $text_color, $fontsmall, $text, $image) ;
+
+$text = $rain ? "${rain}mm/h" : "nil" ;
+$image = right_justified($xx8, $yy8, $text_color, $fontsmall, $text, $image) ;
+
+$text = "$humid%" ;
+$image = right_justified($xx9, $yy9, $text_color, $fontsmall, $text, $image) ;
+
+
+##  Save the finished thumbnail.
+save_image($image, $outfile) ;
+
+##  Update image in the FvwmButtons module.
+my $cmd = "SendToModule $panelmodname ChangeButton winfo Icon " ;
+$cmd .= $outfile->basename ;
+$module->send($cmd) ;
+
+##  SUBROUTINES
+
+sub get_color {
+    my $cs_num = shift ;
+    my $opt = shift ;
+    my $color = $cs_hash->{$cs_num}->{$opt} ;
+    return sprintf('#%x',$color) ;
+}
+
+sub write_weather_info  {
+    $weatherfile->remove ;
+    my $info = rounded($data->{temperature}->{max}) . "," . $data->{weather}->{icon} ;
+    $weatherfile->append($info) ;
+}
+
+sub pingtest {
+    my $cmd = "ping -c1 -W5 8.8.8.8 1>/dev/null 2>&1 " ;
+    $cmd .= " && echo -n 1 || echo -n 0" ;
+    return readpipe($cmd) ;
+}
+
+sub load_image {
+
+    my $err = 1 ;
+    my $image = Image::Magick->New() ;
+    my $imgfile = shift ;
+
+    open(IMAGE, $imgfile) or return 0 ;
+    $err = $image->Read(file=>\*IMAGE);
+    close(IMAGE);
+    if ($err) { return 0 } else { return $image } ;
+}
+
+sub save_image  {
+
+    my $image = shift ;
+    my $outfile = shift ;
+
+    open(IMAGE, ">$outfile") ;
+    return 0 if $image->Write(
+        file => \*IMAGE, 
+        filename => $outfile, 
+        quality => $quality,
+    ) ;
+
+    return 1 ;
+}
+
+sub right_justified {
+
+    my $xpos = shift ;
+    my $ypos = shift ;
+    my $color = shift ;
+    my $font = shift ;
+    my $text = shift ;
+    my $img = shift ;
+
+    $xpos -= $font->{width} * length($text) ;
+
+    return 0 if $img->Annotate(
+        x => $xpos,
+        y => $ypos,
+        gravity => "NorthWest",
+        font => $font->{file},
+        fill => $color, 
+        text => $text,
+    ) ;
+
+    return $img ;
+}
+
+sub left_justified {
+
+    my $xpos = shift ;
+    my $ypos = shift ;
+    my $color = shift ;
+    my $font = shift ;
+    my $text = shift ;
+    my $img = shift ;
+
+    return 0 if $img->Annotate(
+        x => $xpos,
+        y => $ypos,
+        gravity => "NorthWest",
+        font => $font->{file},
+        fill => $color, 
+        text => $text,
+    ) ;
+
+    return $img ;
+}
+
+sub center_justified {
+
+    my $xpos = shift ;
+    my $ypos = shift ;
+    my $color = shift ;
+    my $font = shift ;
+    my $text = shift ;
+    my $img = shift ;
+
+    $xpos -= int($font->{width} * length($text)/2) ;
+
+    return 0 if $img->Annotate(
+        x => $xpos,
+        y => $ypos,
+        gravity => "NorthWest",
+        font => $font->{file},
+        fill => $color, 
+        text => $text,
+    ) ;
+
+    return $img ;
+}
+
+sub get_weather_data  {
+
+    my $key = readpipe("cat $ENV{FVWM_USERDIR}/.weatherkey") ;
+    my $url = "http://api.openweathermap.org/data/2.5/weather?id=2191562&mode=xml&units=metric&APPID=$key" ;
+    my $xml = readpipe("timeout 5 curl \"$url\" 2>/dev/null") ;
+    my $xs   = XML::LibXML::Simple->new() ;
+    my $data = $xs->XMLin($xml,) ;
+    return $data ;
+}
+
+##  Cribbed from Math::Round
+sub nearest {
+    my $targ = abs(shift);
+    my $half = 0.50000000000008 ;
+    my @res  = map {
+        if ($_ >= 0) { $targ * int(($_ + $half * $targ) / $targ); }
+        else { $targ * POSIX::ceil(($_ - $half * $targ) / $targ); }
+     } @_ ;
+
+     return (wantarray) ? @res : $res[0] ;
+}
+
+##  Cribbed from Math::Round
+sub rounded {
+ my $x;
+ my $half = 0.50000000000008 ;
+ my @res  = map {
+  if ($_ >= 0) { POSIX::floor($_ + $half); }
+     else { POSIX::ceil($_ - $half); }
+ } @_;
+
+ return (wantarray) ? @res : $res[0];
+}
+
+
+#my $text = "°C" ;
+

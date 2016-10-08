@@ -1,0 +1,290 @@
+#!/usr/bin/perl
+
+##  Howto prevent 2 of same script running
+
+use strict ;
+use warnings ;
+use v5.20 ;
+
+use lib `fvwm-perllib dir`;
+use FVWM::Module ;
+use POSIX qw( mkfifo ) ;
+use Math::Round qw( nearest ) ;
+use File::Path qw(make_path remove_tree) ;
+use Image::Magick ;             
+
+##  Name of the associated FvwmButtons module.
+my $fbmodname = "NcmpcppGui" ;
+
+##  MPD music directory, status etc.
+my $music_dir = $ENV{HOME} . "/Music" ;
+my $mpd_status = "stopped" ;
+my $mpd_file = my $mpd_elapsed = my $mpd_percent = 0 ;
+
+##  Coverart geometry + destination.
+my $coverart_geom = "256x256!" ;
+my $coverart_dir = "/tmp/fvwm/eyed3" ;
+my $coverart_dest = "$ENV{FVWM_USERDIR}/images/cover.png" ;
+
+##  Define the progress bar/urxvt.
+my $colorset = 148 ;
+my $barchar = "█" ;
+my $barname = "ProgressBar" ;
+my $termwidth = 74 ;
+my $termfifo = "/tmp/fifo1" ;
+#my $termfg = "SteelBlue4" ;
+#my $termbg = "gray9" ;
+my $termfont = "5x8" ;
+my $tup = "\x1b\x4d" ;
+
+##  Setup periodic alarm for during playback.
+$SIG{ALRM} = \&polling ;
+
+##  Start module to communicate with fvwm
+my $module = new FVWM::Module(
+    Name => 'UpdateBar',
+    Debug => 0,
+);
+
+my $modname = $module->name ;
+
+##  Tracker object to access info about colorsets
+my $cs_tracker = $module->track("Colorsets") ;
+
+####  Obtain progress bar colors.
+
+##  Obtain up to date colorset data
+my $cs_hash = $cs_tracker->data ;
+
+my $fore = $cs_hash->{$colorset}->{fg} ;
+my $back = $cs_hash->{$colorset}->{bg} ;
+my $termfg = sprintf('#%x',$fore) if $fore ;
+my $termbg = sprintf('#%x',$back) if $back ;
+
+$cs_tracker->stop ;
+
+###  SPAWN THE PROGRESS BAR.
+
+##  Start the urxvt term. 
+unlink ($termfifo) ;
+mkfifo($termfifo, 0700) or die "mkfifo($termfifo) failed: $!" ;
+my $cmd = "urxvt -n $barname -T $barname -g ${termwidth}x1-33300-33300 " ;
+$cmd .= "-fn $termfont -fg \"$termfg\" -bg \"$termbg\" -e cat $termfifo &" ;
+system($cmd) ;
+open(FIFO1, ">$termfifo") ;
+
+##  Set FIFO1 as the default buffer - always flush.
+select(FIFO1) ;
+$| = 1 ;
+
+##  make cursor invisible (tput civis)
+print "\x1b\x5b\x3f\x32\x35\x6c" ;
+
+sleep 3 ;
+update_bar(0) ;
+mpd_update() ;
+
+##  The fvwm module listens for SendToModule cmnds.
+$module->addHandler(M_STRING, \&mpd_update);
+#$module->show_message("Starting");
+$module->event_loop ;
+
+####  SUBROUTINES
+
+sub mpd_update  {
+
+    my $new_file ;
+    my $new_status = "stopped" ;
+    foreach (`mpc -f ":::%file%:::"`)  {
+        $new_file = "$music_dir/$1" if /^.*:::(.*):::$/  ;
+        $new_status = $1 if /^\[(\w+)\].*$/ ;
+    }
+
+    ##  Stop mode
+    if ($new_status eq "stopped" or not defined($new_file) or not -e $new_file ) {
+        $mpd_status = "stopped" ;
+        update_bar(0) ;
+        set_playback_icon("media-playback-start.png") ;
+        #$module->showMessage("mpd_update : STOP") ;
+        return ;
+    } 
+    
+    ##  Play or pause mode, yet the file remains the same.
+    if ($new_file eq $mpd_file)  {
+
+        $mpd_status = $new_status ;
+        if ($mpd_status eq "playing")  {
+            #$module->showMessage("mpd_update : PLAYING, SAME") ;
+            set_playback_icon("media-playback-pause.png") ;
+            polling() 
+        } else {
+            #$module->showMessage("mpd_update : PAUSED, SAME") ;
+            update_elapsed() ;
+            update_bar($mpd_percent) ;
+            set_playback_icon("media-playback-start.png") ;
+        }
+
+    ##  or an entirely new track in play mode.
+    } else {
+
+        $mpd_status = $new_status ;
+        $mpd_file = $new_file ;
+        #$module->showMessage("mpd_update : PLAYING, NEW") ;
+        set_playback_icon("media-playback-pause.png") ;
+        polling() ;
+        update_cover() ;
+    }
+}
+
+sub polling {
+
+    if ($mpd_status eq "playing")  {
+        update_elapsed() ;
+        update_bar($mpd_percent) ;
+        alarm(1) ;
+        return ;
+    } else  {
+        alarm 0 ;
+        return ;
+    }
+}
+
+sub update_elapsed  {
+    foreach (`mpc status`)  {
+        if (/^[[].+#[^ ]+\s+([:\d]+\/[:\d]+)\s\((\d+)%\)\s*$/) { 
+            $mpd_elapsed = $1 ;
+            $mpd_percent = $2 ;
+            #$mpd_elapsed =~ s/:/m/ ;
+            sendtomodule("ChangeButton elapsed Title ${mpd_elapsed}") ;
+        }
+    }
+}
+
+sub set_playback_icon  {
+    my $icon = shift ;
+    sendtomodule("ChangeButton playback Icon $icon") ;
+}
+
+sub update_bar  {
+    my $num_in = shift ;
+    my $normal_width = nearest(1, $num_in * $termwidth / 100) ;
+    $normal_width = $normal_width < 1 ? 1 :
+        $normal_width > $termwidth ? $termwidth : $normal_width ;
+    my $out = $barchar x $normal_width ;
+    $out .= " " x ($termwidth - $normal_width) ;
+    printf "${tup}\r%s", $out ;
+    return ;
+}
+
+sub open_bar {
+
+    ##  Start the urxvt term. 
+    unlink ($termfifo) ;
+    mkfifo($termfifo, 0700) or die "mkfifo($termfifo) failed: $!" ;
+    my $cmd = "urxvt -n $barname -T $barname -g ${termwidth}x1 " ;
+    $cmd .= "-fn $termfont -fg \"$termfg\" -bg \"$termbg\" -e cat $termfifo &" ;
+    system($cmd) ;
+    open(FIFO1, ">$termfifo") ;
+
+    ##  Set FIFO1 as the default buffer - always flush.
+    select(FIFO1) ;
+    $| = 1 ;
+
+    ##  make cursor invisible (tput civis)
+    print "\x1b\x5b\x3f\x32\x35\x6c" ;
+}
+
+sub update_cover {
+
+    my $coverfile = 0 ;
+
+    $coverfile = get_mp3_cover() if $mpd_file =~ /[.]mp3$/ ;
+    $coverfile = get_flac_cover() if $mpd_file =~ /[.]flac$/ ;
+
+    if (not $coverfile) {
+        my $basename = $mpd_file ;
+        $basename =~ s/[.]\w\w\w\w?$// ;
+        ##  say STDERR "$basename.jpg" ;
+        ##  say STDERR "$basename.png" ;
+        $coverfile = "$basename.jpg" if -r "$basename.jpg" ;
+        $coverfile = "$basename.png" if -r "$basename.png" ;
+    }
+
+    return 0 unless -r $coverfile ;
+
+    ##  Correctly resize the cover image.
+
+    ##  Read src cover image into imagemagick.
+    return 0 if not open(IMAGE, $coverfile) ;
+    my $err = 1  ;
+    my $image = Image::Magick->New(quality => 1) ;
+    $err = $image->Read(file=>\*IMAGE) ;
+    close(IMAGE) ;
+    return 0 if $err ;
+
+    ##  resize the cover image.
+    return 0 if $image->AdaptiveResize(geometry => $coverart_geom) ;
+
+    ##  Save the finished cover image..
+    open(IMAGE, ">$coverart_dest") ;
+    return 0 if $image->Write(
+        file => \*IMAGE, 
+        filename => $coverart_dest, 
+        quality => 100,
+        ) ;
+
+    sendtomodule("ChangeButton coverart Icon cover.png") ;
+    return 1 ;
+}
+
+sub get_flac_cover  {
+
+    ##  Create a tmp folder.
+    remove_tree($coverart_dir) ;
+    make_path($coverart_dir) ;
+
+    ##  Dump embedded image from flac.
+    my $file = "$coverart_dir/zzzz" ;
+    system("metaflac --export-picture-to=\"$file\" \"$mpd_file\" 1>/dev/null 2>&1") ;
+
+    if (-r "$file") { return $file } else { return 0 } ;
+}
+
+sub get_mp3_cover {
+
+    ##  Create a tmp folder.
+    remove_tree($coverart_dir) ;
+    make_path($coverart_dir) ;
+
+    ##  Dump embedded images from mp3.
+    system("eyeD3 -i \"$coverart_dir\" \"$mpd_file\" 1>/dev/null 2>&1") ;
+
+    my $img = 0 ;
+    my @names = (
+        "FRONT_COVER.png", "FRONT_COVER.jpg", "FRONT_COVER.jpeg",
+        "FRONT_COVER1.png", "FRONT_COVER1.jpg", "FRONT_COVER1.jpeg", 
+        "OTHER.png", "OTHER.jpg", "OTHER.jpeg",
+    ) ;
+
+    ##  Look for a suitably named image.
+    foreach my $file (@names) {
+        if (-r "$coverart_dir/$file") {
+            $img = "$coverart_dir/$file" ;
+            last ;
+        }
+    } 
+
+    if ($img) { return $img } else { return 0 } ;
+}
+
+##  For sending commands to the FvwmButtons modules.
+sub sendtomodule {
+    foreach (@_) {
+        my $cmd = "SendToModule $fbmodname " . $_ ;
+        $module->send($cmd) ;
+    } 
+}
+
+
+
+

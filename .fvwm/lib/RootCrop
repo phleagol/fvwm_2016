@@ -1,0 +1,140 @@
+#!/usr/bin/perl
+
+##  Useful webpages :-
+##  http://www.imagemagick.org/script/command-line-processing.php
+##  http://www.imagemagick.org/script/perl-magick.php
+
+use utf8 ;
+use strict ;
+use warnings ;
+use v5.20 ;
+
+use lib `fvwm-perllib dir`;
+use FVWM::Module;
+use Image::Magick ;             
+use Data::Dump qw( dump ) ;
+
+##  Filename of the uncropped wallpaper.
+#my $img = $ARGV[$#ARGV] ;
+my $img =  $ENV{ARG1} ;
+##  Output filename for resized wallpaper.
+my $out = "/tmp/fvwmwall.png" ;
+
+##  To get the width/height of the desktop.
+my $module = new FVWM::Module(
+    Name => 'FvwmWallpaper',
+    Mask => M_CONFIG_INFO | M_END_CONFIG_INFO | M_STRING,
+    Debug => 0,
+);
+
+my $modname = $module->name ;
+my $pg_tracker = $module->track("PageInfo") ;
+my $pg_hash = $pg_tracker->data ;
+my $vp_height = $pg_hash->{'vp_height'} ;
+my $vp_width = $pg_hash->{'vp_width'} ;
+my $vp_aspect = $vp_width / $vp_height ;
+
+##  Sanity checks
+die("$modname filename not found") unless -r $img ;
+die("$modname : cannot open image") if not open(IMAGE, $img) ;
+
+##  Exit unless perlMagic can read the image.
+my $err = 1  ;
+my $image = Image::Magick->New(quality => 1) ;
+$err = $image->Read(file=>\*IMAGE) ;
+close(IMAGE) ;
+die("FvwmWall : imgmagick cannot read image") if $err ;
+
+my $img_width = $image->Get('columns') ;
+my $img_height = $image->Get('rows') ;
+my $img_aspect = $img_width / $img_height ;
+
+##  Resize if img width is too small.
+if ($vp_width > $img_width)  {
+    my $hh =  $vp_width / $img_aspect ;
+    return 0 if $image->AdaptiveResize(
+        width => $vp_width,
+        height => $hh,
+    ) ;
+    $img_width = $image->Get('columns') ;
+    $img_height = $image->Get('rows') ;
+    $img_aspect = $img_width / $img_height ;
+}
+
+##  Resize only if img height is too small.
+if ($vp_height > $img_height)  {
+    my $ww = $img_aspect * $vp_height ;
+    return 0 if $image->AdaptiveResize(
+        width => $ww,
+        height => $vp_height,
+    ) ;
+    $img_width = $image->Get('columns') ;
+    $img_height = $image->Get('rows') ;
+    $img_aspect = $img_width / $img_height ;
+}
+
+##  Correct the images aspect ratio via postbox cropping.
+if ( $img_aspect < $vp_aspect )  {
+    my $hh = int($img_width/$vp_aspect) ;
+    my $y = int(($img_height-$hh)/2) ;
+    return 0 if $image->Crop(
+        geometry => "${img_width}x$hh+0+$y"
+    ) ;
+    $img_height = $image->Get('rows') ;
+
+} elsif ( $img_aspect > $vp_aspect )  {
+    my $ww = int($img_height*$vp_aspect) ;
+    #my $x = int($ww/2) ;
+    my $x = int(($img_width-$ww)/2) ;
+    return 0 if $image->Crop(
+        geometry => "${ww}x${img_height}+$x+0"
+    ) ;
+    $img_width = $image->Get('columns') ;
+}
+
+$img_aspect = $img_width / $img_height ;
+
+##  Lastly, resize the image.
+if ($vp_height < $img_height or $vp_width < $img_width)  {
+    return 0 if $image->AdaptiveResize(
+        width => $vp_width,
+        height => $vp_height,
+    ) ;
+    $img_width = $image->Get('columns') ;
+    $img_height = $image->Get('rows') ;
+    $img_aspect = $img_width / $img_height ;
+}
+
+##  Save the finished thumbnail.
+open(IMAGE, ">$out") ;
+$err = $image->Write(
+    file=>\*IMAGE, 
+    filename=>$out, 
+    quality => 1
+    ) ;
+
+return 0 if $err ;
+close IMAGE ;
+
+#sendcmd("SaveWallInfo") ;
+
+##  -r option needed by RootTransparency colorsets.
+system("fvwm-root -r $out") ;
+
+sub sendcmd {
+    foreach (@_) {
+        $module->send($_) ;
+    } 
+}
+
+
+
+
+
+
+
+
+
+
+
+

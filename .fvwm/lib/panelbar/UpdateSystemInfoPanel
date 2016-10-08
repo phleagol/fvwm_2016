@@ -1,0 +1,318 @@
+#!/usr/bin/perl
+
+##  Useful webpages :-
+##  http://www.imagemagick.org/script/command-line-processing.php
+##  http://www.imagemagick.org/script/perl-magick.php
+
+use strict ;
+use warnings ;
+use utf8 ;
+use v5.22 ;
+use lib `fvwm-perllib dir` ;
+
+use FVWM::Module ;
+use Image::Magick ;             ##  libimage-magick-perl
+use Data::Dump qw( dump ) ;
+use Path::Tiny ;                ##  libpath-tiny-perl
+use POSIX ;
+
+##  Name of the FvwmButtons weather panel.
+my $panelmodname = "SystemInfoPanel" ;
+##  Output image filepath
+my $outfile = path("$ENV{FVWM_USERDIR}/images/panel-systeminfo.png") ;
+##  Imagemagick quality setting.
+my $quality = 99 ;
+##  Color and geometry for canvas  
+my $canvas_geometry = "280x130" ;
+my $canvas_bg = "gray9" ;
+
+##  Start the FVWM module.
+my $modname = "UpdateSystemInfoPanel" ;
+my $module = new FVWM::Module(
+    Name => $modname,
+    Debug => 0,
+) ;
+
+##  Get FVWM colorset data.
+my $cs_tracker = $module->track("Colorsets") ;
+my $cs_hash = $cs_tracker->data ;
+$cs_tracker->stop ;
+
+##  Colors for text, bold and plain.
+my $text_color = get_color(320,"fg") ;
+my $text_bold_color = get_color(321,"fg") ;
+
+##  Descriptors for large and small fonts.
+my $fontdir = "/usr/share/fonts/X11/misc" ;
+my $fontsmall = {
+    file => "$fontdir/ter-u16b_iso-8859-1.pcf.gz", width => 8,
+} ;
+my $fontlarge = {
+    file => "$fontdir/ter-u18b_iso-8859-1.pcf.gz", width => 10,
+} ;
+
+##  Get updated system information.
+my ($seconds, $hours, $minutes) = get_uptime() ;
+my $loadavg = get_loadavg() ;
+my $debs = get_apt_upgradable() ;
+my $last_backup = last_backup_days() ;
+my $cpu_temp = get_cpu_temperature() ;
+
+####  Draw the panel
+
+##  Create blank canvas.
+my $image = Image::Magick->new ;
+$image->Set(size => $canvas_geometry) ;
+$image->ReadImage("canvas:$canvas_bg") ;
+
+##  Annotate the main title 
+my $xx1 = 140 ; my $yy1 = 20 ;
+my $text = "SYSTEM INFORMATION" ;
+$image = center_justified($xx1, $yy1, $text_color, $fontsmall, $text, $image) ;
+
+##  Calculate the subtitles positions. 
+my $yoffset = 19 ;
+my $xx2 = 15 ; my $yy2 = 40 ;
+my $xx3 = $xx2 ; my $yy3 = $yy2 + $yoffset ;
+my $xx4 = $xx2 ; my $yy4 = $yy3 + $yoffset ;
+my $xx5 = $xx2 ; my $yy5 = $yy4 + $yoffset ;
+my $xx6 = $xx2 ; my $yy6 = $yy5 + $yoffset ;
+
+##  Annotate the subtitles.
+$image = left_justified($xx2, $yy2, $text_bold_color, $fontsmall, "UPTIME:", $image) ;
+$image = left_justified($xx3, $yy3, $text_bold_color, $fontsmall, "UPGRADES:", $image) ;
+$image = left_justified($xx4, $yy4, $text_bold_color, $fontsmall, "LAST BACKUP:", $image) ;
+$image = left_justified($xx5, $yy5, $text_bold_color, $fontsmall, "CPU TEMP:", $image) ;
+$image = left_justified($xx6, $yy6, $text_bold_color, $fontsmall, "LOAD AVG:", $image) ;
+
+##  Calculate the text value positions.
+my $xx7 = 265 ; my $yy7 = $yy2 ;
+my $xx8 = $xx7 ; my $yy8 = $yy7 + $yoffset ;
+my $xx9 = $xx8 ; my $yy9 = $yy8 + $yoffset ;
+my $xx10 = $xx9 ; my $yy10 = $yy9 + $yoffset ;
+my $xx11 = $xx10 ; my $yy11 = $yy10 + $yoffset ;
+
+##  Annotate the text values.
+
+$text = "${hours}hrs, ${minutes}mins" ;
+$image = right_justified($xx7, $yy7, $text_color, $fontsmall, $text, $image) ;
+
+$image = right_justified($xx8, $yy8, $text_color, $fontsmall, $debs, $image) ;
+$text = "-$last_backup days" ;
+
+$image = right_justified($xx9, $yy9, $text_color, $fontsmall, $text, $image) ;
+$text = "${cpu_temp}°C" ;
+
+$image = right_justified($xx10, $yy10, $text_color, $fontsmall, $text, $image) ;
+$text = "$loadavg" ;
+
+$image = right_justified($xx11, $yy11, $text_color, $fontsmall, $text, $image) ;
+
+##  Save the finished panel.
+save_image($image, $outfile) ;
+
+##  Update image in the FvwmButtons module.
+my $cmd = "SendToModule $panelmodname ChangeButton sicon Icon " ;
+$cmd .= $outfile->basename ;
+$module->send($cmd) ;
+
+exit ;
+
+####  SUBROUTINES
+
+sub get_color {
+    my $cs_num = shift ;
+    my $opt = shift ;
+    my $color = $cs_hash->{$cs_num}->{$opt} ;
+    return sprintf('#%x',$color) ;
+}
+
+sub get_uptime  {
+    my $seconds = readpipe('sed "s/[.].*//" </proc/uptime') ;
+    my $hours = int($seconds/3600) ;
+    my $minutes = int(($seconds%3600)/60) ;
+    return ($seconds, $hours, $minutes) ;
+}
+
+##    sub get_meminfo  {
+##        my $used = readpipe 'free -m | awk \'/^Mem:/{print $3}\'' ;
+##        chomp $used ;
+##        my $swap = readpipe 'free -m | awk \'/^Swap:/{print $3}\'' ;
+##        chomp $swap ;
+##        return ($used, $swap) ;
+##    }
+
+sub get_loadavg {
+    my @loadavg = split(/\s+/, readpipe("cat /proc/loadavg")) ;
+    my $loadavg = join(" ", @loadavg[0..2]) ;
+    return $loadavg ;
+}
+
+sub get_apt_upgradable {
+    my $apt_file = "/var/log/apt-upgradable" ;
+
+    my $total = readpipe("apt list --installed 2>/dev/null|sed 1d|wc -l") ;
+    chomp $total ;
+
+    my $upgradable = 0 ;
+    if (-r $apt_file) {
+        $upgradable = readpipe "cat $apt_file" ;
+        chomp $upgradable ;
+    }
+    return "$upgradable of $total" ;
+}
+
+
+sub last_backup_days  {
+    my $atime = 0 ;
+    my $seconds = time() ;
+    foreach my $file (</mnt/btrfs/lacipec1?2*>)  {
+        my $cmd = "stat --format=%X " . $file ;
+        my $num = readpipe($cmd) ;
+        chomp $num ;
+        $atime = $num if $num > $atime ;
+    }
+    return int(($seconds - $atime)/86400) ;
+}
+
+sub get_cpu_temperature {
+    my $celsius = readpipe("cat /sys/devices/virtual/thermal/thermal_zone0/temp") ;
+    $celsius = rounded($celsius/1000) ;
+    return $celsius ;
+    #$celsius .= "°" ;
+}
+
+sub load_image {
+
+    my $err = 1 ;
+    my $image = Image::Magick->New() ;
+    my $imgfile = shift ;
+
+    open(IMAGE, $imgfile) or return 0 ;
+    $err = $image->Read(file=>\*IMAGE);
+    close(IMAGE);
+    if ($err) { return 0 } else { return $image } ;
+}
+
+sub save_image  {
+
+    my $image = shift ;
+    my $outfile = shift ;
+
+    open(IMAGE, ">$outfile") ;
+    return 0 if $image->Write(
+        file => \*IMAGE, 
+        filename => $outfile, 
+        quality => $quality,
+    ) ;
+
+    return 1 ;
+}
+
+sub right_justified {
+
+    my $xpos = shift ;
+    my $ypos = shift ;
+    my $color = shift ;
+    my $font = shift ;
+    my $text = shift ;
+    my $img = shift ;
+
+    $xpos -= $font->{width} * length($text) ;
+
+    return 0 if $img->Annotate(
+        x => $xpos,
+        y => $ypos,
+        gravity => "NorthWest",
+        font => $font->{file},
+        fill => $color, 
+        text => $text,
+    ) ;
+
+    return $img ;
+}
+
+sub left_justified {
+
+    my $xpos = shift ;
+    my $ypos = shift ;
+    my $color = shift ;
+    my $font = shift ;
+    my $text = shift ;
+    my $img = shift ;
+
+    return 0 if $img->Annotate(
+        x => $xpos,
+        y => $ypos,
+        gravity => "NorthWest",
+        font => $font->{file},
+        fill => $color, 
+        text => $text,
+    ) ;
+
+    return $img ;
+}
+
+sub center_justified {
+
+    my $xpos = shift ;
+    my $ypos = shift ;
+    my $color = shift ;
+    my $font = shift ;
+    my $text = shift ;
+    my $img = shift ;
+
+    $xpos -= $font->{width} * int(length($text)/2) ;
+
+    return 0 if $img->Annotate(
+        x => $xpos,
+        y => $ypos,
+        gravity => "NorthWest",
+        font => $font->{file},
+        fill => $color, 
+        text => $text,
+    ) ;
+
+    return $img ;
+}
+
+##  Cribbed from Math::Round
+sub rounded {
+ my $x;
+ my $half = 0.50000000000008 ;
+ my @res  = map {
+  if ($_ >= 0) { POSIX::floor($_ + $half); }
+     else { POSIX::ceil($_ - $half); }
+ } @_;
+
+ return (wantarray) ? @res : $res[0];
+}
+
+##  Cribbed from Math::Round
+sub nearest {
+    my $targ = abs(shift);
+    my $half = 0.50000000000008 ;
+    my @res  = map {
+        if ($_ >= 0) { $targ * int(($_ + $half * $targ) / $targ); }
+        else { $targ * POSIX::ceil(($_ - $half * $targ) / $targ); }
+     } @_ ;
+
+     return (wantarray) ? @res : $res[0] ;
+}
+
+
+#$text = "PROCESSES:" ;
+#$ypos += $offset ;
+#$image = left_justified($xpos, $ypos, $text_bold_color, $fontsmall, $text, $image) ;
+
+#$text = "$processes" ;
+#$ypos += $offset ;
+#$image = right_justified($xpos, $ypos, $text_color, $fontsmall, $text, $image) ;
+
+##  sub get_process_count  {
+##      my $processes = readpipe("ps -e | wc -l");
+##      chomp $processes ;
+##      return $processes ;
+##  }
+
+

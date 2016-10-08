@@ -1,0 +1,171 @@
+#!/usr/bin/perl
+
+use utf8 ;
+use strict ;
+use warnings ;
+use v5.20 ;
+
+use lib `fvwm-perllib dir`;
+use FVWM::Module;
+use List::MoreUtils qw(uniq) ;
+#use Data::Dump qw( dump ) ;
+
+my $module = new FVWM::Module(
+    Name => 'MountMenu',
+    Debug => 0,
+);
+
+##  Fvwm menu name
+my $menuname = "MountMenu" ;
+my $menuname_alt = "MountMenuTitled" ;
+##  Icons used for yes and no
+my $tick = "%mm_tick.png%" ;
+my $notick = "%mm_null.png%" ;
+
+##  List of vfat devices
+my @devs = get_vfat_devices() ;
+##  Number of tombs found and already mounted
+my $tombcount = 0 ;
+##  Number of vfat found
+my $vfatcount = 0 ;
+
+my $cmd = my $item = my $label ;
+
+##  Menu entries for any detected vfat devices.
+foreach my $device (@devs) {
+
+    ##  More info about the vfat device.
+    $label = get_device_label($device) ;
+    my $mnt = get_mountpoint($device) ;
+
+    ##  If device is mounted, then do this, else...
+    if ($mnt && -d $mnt) {
+        $cmd = "PUmount /dev/$device" ; 
+        $item = $label ? "$tick$label\t$device" 
+                       : "$tick---\t$device"  ;
+    } else {
+        ##  If the device is labeled, then do this, else...
+        if ($label) {
+           $cmd = "PMount /dev/$device \"$label\"" ; 
+           $item = "$notick$label\t$device" ;
+        } else {
+           $cmd = "PMount /dev/$device" ; 
+           $item = "$notick---\t$device" ;
+        }
+    }
+    sendcmd("\"$item\" $cmd") ; 
+    $vfatcount++ ;
+}
+
+##  Menu separator
+if ($vfatcount > 0) { sendcmd("\"\" Nop") }
+
+##  Menu entries for files LUKS-encrypted by tomb
+foreach my $tombfile ( glob("~/tomb/*.tomb") ) {
+
+    ##  Move to next entry if keyfile not found.
+    my $keyfile = "$tombfile.key" ;
+    next unless -e $keyfile ;
+
+    $label = $tombfile =~ s/^.*\///r ;
+    $label =~ s/[.]tomb$// ;
+    my $mntdir = "/media/$label"  ;
+##    say STDERR "label : $label" ;
+##    say STDERR "mntdir : $mntdir" ;
+
+    ##  retvar equals 0 if tomb is already mounted
+    my $retvar = system("lsblk -lno MOUNTPOINT | grep -q \"$mntdir\"") ;
+
+    if ($retvar == 0 )  {
+        $tombcount++ ;
+        $cmd = "TombUmount \"$label\"" ;
+        $item = "$tick$label\tluks" ;
+    } else {
+        $cmd = "TombMount \"$tombfile\" \"$keyfile\"" ;
+        $item = "$notick$label\tluks" ;
+    }
+    sendcmd("\"$item\" $cmd") ; 
+}
+
+##  Menu separator
+sendcmd("\"\" Nop") ; 
+
+##  THe ethernet is either up or down.
+my $ethernet_status = get_ethernet_status() ;
+##  Number of deb packages to upgrade
+my $apt = get_apt_upgradable() ;
+
+if ($ethernet_status eq "up") {
+    $item = "%mm_ethernet_up.png%Ethernet\tup" ;
+    $cmd = "Exec exec urxvt -e sudo /root/bin/sudo-ifdown-eth0" ;
+} else {
+    $item = "%mm_ethernet_down.png%Ethernet\tdown" ;
+    $cmd = "Exec exec urxvt -e sudo /root/bin/sudo-ifup-eth0" ;
+}
+
+sendcmd("\"$item\" $cmd") ; 
+
+$item = "%mm_apt_update.png%&Apt Update\t$apt" ;
+$cmd = "Exec exec urxvt -b 7 -T \"apt update\" -n \"apt update\"" ;
+$cmd .= " -g 120x25  -e sudo /root/bin/sudo-apt-update" ;
+sendcmd("\"$item\" $cmd") ; 
+
+##  Only if any luks tombs are already mounted.
+if ($tombcount > 0) {
+    sendcmd("\"\" Nop") ; 
+    sendcmd("\"%mm_tomb.png%Tomb Slam\" TombSlam") ; 
+}
+
+####  SUBROUTINES
+
+sub get_vfat_devices  {
+    my $cmd = 'lsblk -ln -o FSTYPE,NAME | grep -v sda | sed -rn "s/^vfat\\s+//p"' ;
+    my @devs = uniq(readpipe($cmd)) ;
+    chomp @devs ;
+    return @devs ;
+}
+
+sub get_mountpoint  {
+    my $device = shift ;
+    my $cmd = "lsblk -ln -o NAME,MOUNTPOINT | sed -rn \"s/^$device\\s+//p\"" ; 
+    my $mnt = readpipe($cmd) ;
+    chomp $mnt ;
+    return $mnt ;
+}
+
+sub get_ethernet_status {
+    my $ethernet_device = "eth0" ;
+    my $ethernet_file = "/sys/class/net/$ethernet_device/operstate" ;
+    my $ethernet_status = readpipe "cat $ethernet_file" ;
+    chomp $ethernet_status ;
+    return $ethernet_status ;
+}
+
+sub get_apt_upgradable {
+    my $apt = 0 ;
+    my $apt_file = "/var/log/apt-upgradable" ;
+    if (-r $apt_file) {
+        $apt = readpipe "cat $apt_file" ;
+        chomp $apt ;
+    }
+    return $apt ;
+}
+
+sub get_device_label  {
+    my $device = shift ;
+    my $cmd = "lsblk -ln -o NAME,LABEL | sed -rn \"s/^$device\\s+//p\"" ; 
+    my $label = readpipe($cmd) ;
+    chomp $label ;
+    return $label ;
+}
+
+sub sendcmd {
+    foreach (@_) {
+        my $msg = "AddToMenu $menuname $_" ;
+        $module->send($msg) ;
+        $msg = "AddToMenu $menuname_alt $_" ;
+        $module->send($msg) ;
+        #$module->showMessage("debug: $msg") ;
+    } 
+}
+

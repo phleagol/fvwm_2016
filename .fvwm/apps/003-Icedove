@@ -1,0 +1,74 @@
+## vim: sts=0:noet:syntax=fvwm:
+
+Style Ice?ove* InitialMapCommand Start-ID
+Style Ice?ove* Title, StartsOnDesk 5
+
+DestroyFunc Start-ID
+AddToFunc Start-ID
+#+ I Echo Start-ID
++ I ThisWindow (Transient) ID-Transient
++ I ThisWindow (!Transient) ID-Normal
+
+####  NORMAL WINDOWS
+
+DestroyFunc ID-Normal
+AddToFunc ID-Normal
+#+ I Echo ID-Normal
++ I ThisWindow (Msgcompose*) ID-Msgcompose
++ I ThisWindow (About?Ice?ove*) ID-About
++ I ThisWindow (Mail, *Mail/News) ID-Main
+
+DestroyFunc ID-Main
+AddToFunc ID-Main
+#+ I Echo ID-Main
++ I UnMaximize
++ I Resize frame 80 80
++ I Move 50-50w 50-50w-10p ewmhiwa 
++ I Schedule 2000 FullMaximize
++ I Break 2
+
+DestroyFunc ID-About
+AddToFunc ID-About
+#+ I Echo About Icedove
++ I UnMaximize
++ I Resize frame 200p 150p 
++ I Move 50-50w 50-50w ewmhiwa 
++ I Break 2
+
+DestroyFunc ID-Msgcompose
+AddToFunc ID-Msgcompose
+#+ I Echo ID-Msgcompose
++ I UnMaximize
++ I Resize frame 80 80
++ I Move 50-50w 50-50w-10p ewmhiwa 
++ I Break 2
+
+####  TRANSIENT WINDOWS
+
+DestroyFunc ID-Transient
+AddToFunc ID-Transient
+#+ I Echo ID-Transient (UnDefined)
+#+ I ThisWindow (Account?Settings) ID-AccountSettings
++ I ThisWindow (Select?Local?Directory) ID-SelectLocalDirectory
++ I Move 50-50w 50-50w ewmhiwa 
++ I Break
+
+##  DestroyFunc ID-AccountSettings
+##  AddToFunc ID-AccountSettings
+##  + I Echo ID-AccountSettings
+##  + I Break 2
+
+DestroyFunc ID-SelectLocalDirectory
+AddToFunc ID-SelectLocalDirectory
+#+ I Echo ID-SelectLocalDirectory
++ I Resize frame 80 70
++ I Break
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,161 @@
+#!/usr/bin/perl
+
+##  I tried to rewrite this using ->event_loop and ->terminate, to query
+##  FVWM's configuration database to obtain its settings and vars. But
+##  it confounded me. It seems that commands were sent to FVWM, but only
+##  processed by FVWM after the initial wallpaper menu was exited. If
+##  this module was not part of a MissingSubmenuFunction menu, I doubt
+##  this problem would occur. So I have now resolved to not obtain this  
+##  module'ssettings from the configuration database. 
+
+use utf8 ;
+use strict ;
+use warnings ;
+use v5.20 ;
+
+use lib `fvwm-perllib dir`;
+use FVWM::Module;
+use Image::Magick ;             
+#use Data::Dump qw( dump ) ;
+
+my $module = new FVWM::Module(
+    Name => 'WallBrowser',
+    Debug => 0,
+);
+
+##  Read in the current folder for this dynamic menu
+my $dir = $ENV{ARG1} ;
+##  Color for border around thumbnail.
+my $wallthumb_border_color = $ENV{ARG2} ;
+
+##  Folder in which to store wallpaper thumbnails.
+my $thumbdir = $ENV{FVWM_WALLTHUMBS} ;
+##  Menu icon for folder entries in the menu.
+my $icon_dir = "$ENV{HOME}/.icons/AwOken/clear/24x24/places/awoken/awokenclear/folder-photos.png" ;
+##  Long menu labels get truncated. Maximum length for labels in chars. 
+my $charmax = 25 ;
+##  Fvwm menustyle name for this menu.
+my $menustyle = "WallpaperMenuStyle" ;
+##  Cmnd string used to generate the folder menu.
+my $menucmd = 'fvwm-menu-directory --icon-file __PIXMAP__ ' ;
+$menucmd .= "--icon-dir \"$icon_dir\" --links --dir \"$dir\" " ;
+$menucmd .= '--command-file="RootCrop \"%f\"" ' ;
+$menucmd .= '--func-name WallBrowser ' ;
+
+##  Magick properties to create a nice thumbnail.
+my $wallthumb_geom = "80x40!" ;
+my $wallthumb_border_width = 2 ;
+##  my $wallthumb_pad_color = "grey9" ;
+##  my $wallthumb_pad_geom = "x4" ;
+my $quality = 99 ;
+
+##  Create thumbs for all images in the current folder.
+foreach my $wall (glob("$dir/*.{png,jpg}")) { 
+
+    ##  generate a filename for the thumbnail.
+    my $thumb = $wall ;
+    $thumb =~ s/^.*\/// ;
+    $thumb =~ s/[.]\w\w\w$/.png/ ;
+    $thumb = "$thumbdir/$thumb" ;
+
+    ##  Goto next wally if a good thumb already exists.
+    if (-e $thumb)  {
+        my @wallstat = stat($wall) ;
+        my @thumbstat = stat($thumb) ;
+        next if $wallstat[9] <= $thumbstat[9] ;
+        unlink $thumb ;
+    }
+
+    ##  Create a new thumb.
+    thumbificate($wall, $thumb) ;
+    say STDERR "WallThumb : $thumb" ;
+}
+
+foreach my $line (`$menucmd`)  {
+
+    chomp $line ;
+
+    ##  Discarding unwanted menu entries 
+    if ($line =~ /Nop$/ or $line =~ /Exec cd/) {
+        next 
+
+    ##  Add a title to the menu.
+    } elsif ($line =~ /^AddToMenu\s+(\S+)/)  {
+
+        sendcmd($line) ;
+        sendcmd("ChangeMenuStyle $menustyle $1") ;
+
+    ##  For each wallpaper entry, substitite in a thumbicon. 
+    } elsif ($line =~ /^.*__PIXMAP__%([^"]*)([.]\w\w\w)["](.*)$/) {
+
+        ##  Make menu entry with thumbicon, and send to fvwm.
+        my $out = '+ "%' . "$thumbdir/$1.png%\"$3" ;
+        sendcmd($out) ;
+
+    ##  Add a ">" to all folder entries.
+    } elsif ($line =~ /^(.*\"%\/[^"]+)(\"\sPopup.*)$/)  {
+        sendcmd("$1\t>$2") ;
+
+    } else {
+        sendcmd($line) ;
+    }
+}
+
+exit ;
+
+
+####  SUBROUTINES
+
+sub thumbificate {
+
+    my $wall = shift ;
+    my $thumb = shift ;
+
+    ##  Abort thumb if magick cannot read the wallpaper.
+    my $err = 1  ;
+    return 0 if not open(WALL, $wall) ;
+    my $image = Image::Magick->New(quality => $quality) ;
+    $err = $image->Read(file=>\*WALL) ;
+    close(WALL) ;
+    return 0 if $err ;
+
+    ##  Create thumbnail
+    return 0 if $image->Thumbnail(
+        geometry => $wallthumb_geom,
+    ) ;
+
+    ##  Add a colored border to the thumb
+    return 0 if $image->Border(
+        width => $wallthumb_border_width,
+        height => $wallthumb_border_width,
+        bordercolor => $wallthumb_border_color,
+    ) ;
+
+##    ##  Add another border to top and bottoms sides, 
+##    ##  but using the menus background color.
+##    return 0 if $image->Border(
+##        bordercolor => $wallthumb_pad_color,
+##        geometry => $wallthumb_pad_geom,
+##    ) ;
+
+    ##  Save the thumb into its storage folder.
+    $err = 1 ;
+    open(THUMB, ">$thumb") ;
+    $err = $image->Write(
+        file => \*THUMB, 
+        filename => $thumb, 
+        quality => $quality,
+        ) ;
+
+    close THUMB ;
+
+    if ($err) { return 0 } else { return 1 } ;
+}
+
+sub sendcmd {
+    foreach (@_) {
+        $module->send($_) ;
+        #$module->showMessage("debug: $_") ;
+    } 
+}
+

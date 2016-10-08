@@ -1,0 +1,382 @@
+#!/usr/bin/perl
+
+##  Fvwm module to collect system stats, and use them to update
+##  the various values and fields of the FvwmButtons statusbar.
+
+use strict ;
+use warnings ;
+use v5.22 ;
+
+use lib `fvwm-perllib dir`;
+use FVWM::Module;
+use Time::Piece ;
+use Time::Seconds ;
+use Sys::Statistics::Linux ;
+use Path::Tiny ;                ##  libpath-tiny-perl
+use POSIX ;
+#use Data::Dump qw( dump ) ;
+
+##  Name of the panelbar module.
+my $panel_modname = "PanelBar" ;
+##  Name of the TimeandDate module.
+my $timedate_modname = "TimeAndDate" ;
+##  Name for this fvwmperl module.
+my $fvwm_modname = "UpdatePanelBar" ;
+##  The file from which current weather data is read.
+my $weatherfile = path("$ENV{FVWM_USERDIR}/.weather") ;
+
+##  Seconds between each panelbar update.
+my $pollinterval = 1 ;
+##  The current time/date.
+my $t = Time::Piece->new ;
+##  Time/date for the last update
+my $t_lastupdate = 0 ;
+##  Time/date for the last memory update
+my $t_lastmemory = $t - ONE_HOUR ;
+##  Time/date for the last weather update
+my $t_lastweather = $t - ONE_HOUR ;
+##  The last known desktop number.
+my $lastdesktop = -1 ;
+##  Colors used to underline desktop numbers
+my $underline_off = "gray9" ;
+#my $underline_on = "gray70" ;
+#my $underline_on = "steelblue4" ;
+my $underline_on = "#547A99" ;
+
+##  Colorset numbers associated with each numbered desktop.
+my %desktop_cs = ( 
+    "-1" => 284, "0" => 284, "1" => 275, "2" => 276, "3" => 277,  
+    "4" => 278,  "5" => 279, "6" => 280, "7" => 281, "8" => 282, 
+) ;
+
+##  Volume icons for show_volume().
+my @volume_icons = (
+    { threshold => 20, icon => "pb_volume-zero.png" },
+    { threshold => 45, icon => "pb_volume-low.png" },
+    { threshold => 70, icon => "pb_volume-medium.png" },
+    { threshold => 100, icon => "pb_volume-high.png" },
+) ;
+
+##  Brightness icons for show_bright().
+my @bright_icons = (
+    { threshold => 25, icon => "pb_brightness-low.png" },
+    { threshold => 50, icon => "pb_brightness-medium.png" },
+    { threshold => 75, icon => "pb_brightness-high.png" },
+    { threshold => 100, icon => "pb_brightness-full.png" },
+) ;
+
+##  Obtain initial data from the systems stats module.
+my $lxs = Sys::Statistics::Linux->new(
+    cpustats  => 1,
+    netstats  => 1,
+) ;
+
+$lxs->init ;
+my $lxsdata = $lxs->get ;
+
+##  Start periodic updates via the alarm() function.
+$SIG{ALRM} = \&polling ;
+alarm($pollinterval) ;
+
+##  Start the fvwm module, for sending SendToModule cmnds.
+my $module = new FVWM::Module(
+    Name => $fvwm_modname,
+    Debug => 1,
+);
+
+##  A tracker to detect and update changes of desktop.
+my $page_tracker = $module->track("PageInfo") ;
+$page_tracker->observe(sub {
+	my ($module, $tracker, $info) = @_;
+        update_desktop($info->{desk_n}) ;
+});
+
+##  A handler to intercept fvwm cmnds. Triggers an update for 
+##  volume and brightness.
+$module->addHandler(M_STRING, sub {
+    show_volume() ;
+    show_bright() ;
+}) ;
+
+##  Listen to fvwm.
+$module->event_loop ;
+
+say STDERR "UpdatePanelBar: You shouldn't be here!" ;
+
+####  SUBROUTINES
+
+##  To reset the alarm().
+sub polling {
+    alarm(1) ;
+    update_bar() ;
+    #update_datetime() ;
+    return ;
+}
+
+sub update_bar  {
+
+    ##  Refresh the system stats.
+    $lxsdata = $lxs->get ;
+
+    ##  Update current date/time.
+    $t = Time::Piece->new ;
+    update_datetime() ;
+
+    if ($t->epoch%2)  {
+        update_cpustats() ;
+        update_memstats() if $t->epoch - $t_lastmemory->epoch > 30 ;
+        update_netstats() ;
+        update_weather() if $t->epoch - $t_lastweather->epoch > 10 ;
+    }
+
+    $t_lastupdate = $t ;
+    return 1 ;
+}
+
+sub update_weather  {
+    if ($weatherfile->slurp =~ /^(.+)[,](.+)$/) {
+        my $icon = $2 . "_small.png" ;
+        sendto_panelbar("wicon Icon \"$icon\"") ;
+        sendto_panelbar("celsius Title \"${1}C\"") ;
+        $t_lastweather = $t ;
+    }
+}
+
+sub show_bright  {
+    my $bright_max = 255 ;
+    my $bl_device="/sys/class/backlight/radeon_bl0/brightness" ;
+    my $actual = `cat $bl_device` ;
+    chomp $actual ;
+    my $bright = ceiling($actual, $bright_max) ;
+
+    my $icon ;
+    foreach my $arg (@bright_icons) {
+        if ($bright < $arg->{threshold}) {
+            $icon = $arg->{icon} ;
+            last ;
+        }
+    }
+
+    sendto_panelbar("bicon Icon \"$icon\"") if defined($icon) ;
+    sendto_panelbar("bri Title \"$bright%\"") ;
+}
+
+sub show_volume  {
+
+    my $vol ;
+    my $icon ;
+
+    foreach my $x (`amixer scontents` ) {
+        if ($x =~ /^\s+Mono:\s+Playback.+\[(\d\d?\d?)%\].+$/)  {
+            $vol = $1 < 100 ? $1 : 99 ;
+            foreach my $arg (@volume_icons) {
+                if ($vol < $arg->{threshold}) {
+                    $icon = $arg->{icon} ;
+                    last ;
+                }
+            }
+            sendto_panelbar("vicon Icon \"$icon\"") if defined($icon) ;
+            sendto_panelbar("vol Title \"$vol%\"") if defined($vol) ;
+        }
+    }
+}
+
+##  It turns out the stats module over-reports memory usage, 
+##  so I'm using free cmnd instead.
+sub update_memstats {
+    my $used = 0 ;
+    my $total = 1048 ;
+    my $percent = 0 ;
+    foreach (`free -m`) { 
+        #if (/^Mem:\s+(\d+)\s+(\d+)\s+\d+\s+\d+\s+\d+\s+(\d+)\s+/) { 
+        if (/^Mem:\s+(\d+)\s+(\d+)\s+/) { 
+            $total = $1 ;
+            $used = $2 ;
+            $percent = rounded($used/$total * 99) ;
+        } 
+    } 
+    #say STDERR "$used :: $total :: $percent" ;
+    $t_lastmemory = $t ;
+    sendto_panelbar("hdd Title \"$percent%\"") if $percent ;
+}
+
+sub update_netstats {
+
+    ##  Gather disk read/write stats.
+    my $rxbyts = my $txbyts = 0 ;
+    foreach my $netdev (keys %{$lxsdata->{netstats}}) {
+        next if $netdev eq "lo" ;
+        $rxbyts += $lxsdata->{netstats}->{$netdev}->{rxbyt} ;
+        $txbyts += $lxsdata->{netstats}->{$netdev}->{txbyt} ;
+    } ;
+
+    if ($rxbyts > $txbyts)  {
+
+        ##  Reformat rx to use KB/s or MB/s .
+        my $netrx = $rxbyts < 1048576             ? 
+            sprintf "%4.0fK", $rxbyts/1024     :
+            sprintf "%4.1fM", $rxbyts/1048576  ;
+            $netrx =~ s/(\d.*)$/\+$1/ ;
+            #say STDERR $netrx ;
+
+        ##  Update the panlebars net field
+        sendto_panelbar("net Title \"$netrx\"") ;
+
+    } else {
+
+        ##  Reformat tx to use KB/s or MB/s .
+        my $nettx = $txbyts < 1048576             ? 
+            sprintf "%4.0fK", $txbyts/1024     :
+            sprintf "%4.1fM", $txbyts/1048576  ;
+            $nettx =~ s/(\d.*)$/\-$1/ ;
+            #say STDERR $nettx ;
+
+        ##  Update the panlebars net field
+        sendto_panelbar("net Title \"$nettx\"") ;
+    } ;
+}
+
+sub update_cpustats  {
+
+    ##  The cpu equation for Sys::Statistics::Linux::CpuStats is :-
+    ##      user + system + iowait = 100 - idle = total
+    ##  Here, we are seeking total cpu minus iowait.
+
+    my $user = $lxsdata->{cpustats}->{cpu}->{user} ;
+    my $system = $lxsdata->{cpustats}->{cpu}->{system} ;
+    my $cpu = rounded($user + $system) ;
+    $cpu = 99 if $cpu == 100 ;
+    sendto_panelbar("cpu Title \"$cpu%\"") ;
+}
+
+sub update_datetime  {
+
+    ##  Get current time + update the seconds field.
+    my $seconds = sprintf "%02d", $t->sec ;
+    sendto_panelbar("secs Title $seconds") ;
+    sendto_timedate("secs Title $seconds") ;
+
+    ##  Update the hours/minutes field.
+    if ($t_lastupdate and $t->min != $t_lastupdate->min) {
+        my $minutes = sprintf "%02d:%02d:", $t->hour, $t->min ;
+        sendto_panelbar("mins Title \"$minutes\"") ;
+        sendto_timedate("mins Title \"$minutes\"") ;
+    } ;
+
+    ##  Update the month/day field.
+    if ($t_lastupdate and $t->mday != $t_lastupdate->mday) {
+        say STDERR "qqqq" ;
+        my $date = sprintf "%d %s", $t->mday, $t->monname ;
+        #say STDERR "::: date == $date" ;
+        sendto_panelbar("date Title \"$date\"") ;
+        sendto_timedate("date Title \"$date\"") ;
+    } ;
+
+    ##  Update all if this is the first time.
+    if (not $t_lastupdate) {
+        my $minutes = sprintf "%02d:%02d:", $t->hour, $t->min ;
+        my $date = sprintf "%d %s", $t->mday, $t->monname ;
+        #say STDERR "::: date == $date" ;
+        sendto_panelbar("mins Title \"$minutes\"") ;
+        sendto_timedate("mins Title \"$minutes\"") ;
+        sendto_panelbar("date Title \"$date\"") ;
+        sendto_timedate("date Title \"$date\"") ;
+    } ;
+}
+
+sub update_desktop  {
+    my $currentdesktop = shift ;
+    return 0 if $currentdesktop == $lastdesktop ;
+    sendcmd("Colorset $desktop_cs{$currentdesktop} bg $underline_on") ;
+    sendcmd("Colorset $desktop_cs{$lastdesktop} bg $underline_off") ;
+    $lastdesktop = $currentdesktop ;
+}
+
+sub sendcmd { foreach (@_) { $module->send($_) } }
+
+##  To send an fvwm command to the PanelBar module.
+sub sendto_panelbar {
+    foreach (@_) {
+        my $cmd = "SendToModule $panel_modname ChangeButton " . $_ ;
+        #say STDERR "::: $cmd" ;
+        $module->send($cmd) ;
+    } 
+    return 1 ;
+}
+
+##  To send an fvwm command to the TimeAndDate module.
+sub sendto_timedate {
+    foreach (@_) {
+        my $cmd = "SendToModule $timedate_modname ChangeButton " . $_ ;
+        $module->send($cmd) ;
+    } 
+    return 1 ;
+}
+
+##  Cribbed from Math::Round
+sub rounded {
+ my $x;
+ my $half = 0.50000000000008 ;
+ my @res  = map {
+  if ($_ >= 0) { POSIX::floor($_ + $half); }
+     else { POSIX::ceil($_ - $half); }
+ } @_;
+
+ return (wantarray) ? @res : $res[0];
+}
+
+##  Cribbed from Math::Round
+sub nearest {
+    my $targ = abs(shift);
+    my $half = 0.50000000000008 ;
+    my @res  = map {
+        if ($_ >= 0) { $targ * int(($_ + $half * $targ) / $targ); }
+        else { $targ * POSIX::ceil(($_ - $half * $targ) / $targ); }
+     } @_ ;
+
+     return (wantarray) ? @res : $res[0] ;
+}
+
+sub ceiling  {
+    my ($num, $max) = @_ ;
+    $num = 0 unless defined $num ;
+    $num = $num > $max ? $max : $num ;
+    $num = nearest(1, $num*99/$max) ;
+    return $num ;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

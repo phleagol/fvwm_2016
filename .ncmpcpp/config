@@ -1,0 +1,120 @@
+##    ┏┓╻┏━╸┏┳┓┏━┓┏━╸┏━┓┏━┓   ┏━╸┏━┓┏┓╻┏━╸╻┏━╸
+##    ┃┗┫┃  ┃┃┃┣━┛┃  ┣━┛┣━┛   ┃  ┃ ┃┃┗┫┣╸ ┃┃╺┓
+##    ╹ ╹┗━╸╹ ╹╹  ┗━╸╹  ╹     ┗━╸┗━┛╹ ╹╹  ╹┗━┛
+
+ncmpcpp_directory = "/home/phleagol/.ncmpcpp"
+mpd_music_dir = "/home/phleagol/Music"
+external_editor = "/usr/bin/vim"
+mpd_crossfade_time = "3"
+mpd_host = "127.0.0.1"
+mpd_port = "6600"
+
+mouse_support = "no"
+enable_window_title = "no"
+colors_enabled = "yes"
+
+titles_visibility = "no"
+header_visibility = "no"
+statusbar_visibility = "no"
+display_volume_level = "no"
+display_bitrate = "no"
+display_remaining_time = "no"
+progressbar_look = "   "
+
+user_interface = "classic"
+ignore_leading_the = "yes"
+jump_to_now_playing_song_at_start = "yes"
+discard_colors_if_item_is_selected = "no"
+autocenter_mode = "yes"
+centered_cursor = "yes"
+
+##  "Classic" and "column" styles for song display - may apply to several views.
+
+##  Playlist browser mode (classic/columns).
+playlist_display_mode = "columns"
+
+##  Format for classic mode
+song_list_format = "  {$1%c $0• $5}{$5%t$4$R}  {$4%l$0}  "
+#song_list_format = "  {$5%c $1• $8}{%t$1$R}  {$5%l$1}  "
+
+##  Format for column mode
+song_columns_list_format = "(2f)[blue]{} (25f)[blue]{t|f} (26f)[black]{a} (6f)[yellow]{lr} (1f)[yellow]{}$b"
+
+##  Modified color and format for selected songs.
+selected_item_prefix = "$6"
+selected_item_suffix = "$1"
+
+##  Modified color and format for the current song - may apply to several views.
+now_playing_prefix = "$b"
+#now_playing_prefix = "$b$1"
+now_playing_suffix = "$/b"
+
+##  View one - color for text and titles.
+main_window_color = "white"
+main_window_highlight_color = "white"
+
+playlist_disable_highlight_delay = "1"
+playlist_separate_albums = "no"
+
+##  The first color below must be $8, and provides the folder color. 
+##  If not $8, then the folder color will change sometimes.
+##  Lastly, the second color is for *.pls playlist files.
+browser_display_mode = "columns"
+browser_playlist_prefix = "$8P:$4"
+
+##  View four - the display style.
+search_engine_display_mode = "columns"
+
+##  View six - the display style.
+playlist_editor_display_mode = "columns"
+
+window_border_color = "yellow"
+active_window_border = "red"
+
+
+##  Statusbar has been DISABLED
+
+##  Statusbar - colors the "timer" and "Playing/Paused/Stopped" indicator.
+##  statusbar_color = "black"
+
+##  Statusbar - display format for the current song playing.
+#song_status_format = "$5%a $1•$b $4%b$1 • $8%t $1$b"
+#song_status_format = "$5%a $1• $4%b$1 • $8%t $1"
+
+##  Progressbar options.
+
+##  about the progressbar color - 
+##  https://bbs.archlinux.org/viewtopic.php?pid=615179#p615179
+#progressbar_color = "black"
+
+
+##### columns settings #####
+##
+## syntax of song columns list format is "column column etc."
+##
+## - syntax for each column is:
+##
+## (width of column)[column's color]{displayed tag}
+##
+## Note: Width is by default in %, if you want a column to
+## have fixed size, add 'f' after the value, e.g. (10)[white]{a}
+## will be the column that take 10% of screen (so the real column's
+## width will depend on actual screen size), whereas (10f)[white]{a}
+## will take 10 terminal cells, no matter how wide the screen is.
+##
+## - color is optional (if you want the default one, type [])
+##
+## Note: You can give a column additional attributes by putting appropriate
+## character after displayed tag character. Available attributes are:
+##
+## - r - column will be right aligned
+## - E - if tag is empty, empty tag marker won't be displayed
+##
+## E.g. {lr} will give you right aligned column of lengths.
+
+#song_columns_list_format = "(2f)[magenta]{} (55)[magenta]{t} (1f)[magenta]{} (45)[blue]{a} (2f)[blue]{}  (5f)[yellow]{lr} (1f)[yellow]{}$b"
+
+#song_columns_list_format = "(2f)[red]{} (32f)[red]{t} (1f)[red]{} (29f)[blue]{a} (2f)[blue]{}  (6f)[yellow]{l}$b"
+##  song_columns_list_format = "(2f)[white]{} (6f)[yellow]{l} (32f)[green]{t} (1f)[white]{} (30f)[blue]{ar} (2f)[white]{}$b"
+##  song_columns_list_format = "(1f)[white]{} (7f)[yellow]{l} (22f)[white]{t} (1f)[white]{} (30f)[blue]{ar} (1f)[white]{}$b"
+

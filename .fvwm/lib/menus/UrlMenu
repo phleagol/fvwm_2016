@@ -1,0 +1,123 @@
+#!/usr/bin/perl
+
+use utf8 ;
+use strict ;
+use warnings ;
+use v5.18 ;
+
+use Data::Dump qw( dump ) ;
+use lib `fvwm-perllib dir`;
+use FVWM::Module;
+
+my $menuname = "UrlMenu" ;
+my $menutitle = "Url Menu" ;
+
+##  A file where urls are listed for youtube-dl
+my $ytlist = $ENV{ARG1} ;
+
+##  Num of urls in list.
+my $ytnum = 0 ;
+if (-r $ytlist) {
+    $ytnum = readpipe("wc -l <$ytlist") ;
+    chomp $ytnum ;
+}
+
+my $module = new FVWM::Module(
+    Name => 'UrlMenu',
+    Debug => 0,
+    );
+
+my $modname = $module->name ;
+
+##  Vars that define which menu apps get included by default.
+my ($w3m, $dillo ) = (1) x 2 ;
+my ($feh, $sxiv, $mpv, $ytdl, $live) = (0) x 5 ;
+
+##  Get the current url from xsel. Exit if not a valid url.
+my $url = get_xsel_url() ;
+exit if not $url =~ m{^https?://} ;
+
+##  get the url's domain
+$url =~ m{^https?://(www[.])?([^/]+).*$} ;
+my $dom = $2 ;
+
+my $type = "other" ;
+
+##  image type
+if ($url =~ m{^.+[.](jpg|png)([?].*)?$}) {
+    #say STDERR  "type == image" ;
+    $type = "image" ;
+    $w3m = 0 ;
+    $dillo = 0 ;
+    $feh = 1 ;
+
+} elsif ($url =~ m{^.+[.]gif([?].*)?$}) {
+    #say STDERR  "type == image" ;
+    $type = "gif" ;
+    $w3m = 0 ;
+    $dillo = 0 ;
+    $sxiv = 1 ;
+
+##  video type
+} elsif ($url =~ m{^.+[.](mp4|avi|mkv)([?].*)?$}) {
+    $type = "video" ;
+    $w3m = 0 ;
+    $dillo = 0 ;
+    $mpv = 1 ;
+
+##  reddit domain
+} elsif ($dom eq "reddit.com")  {
+    $type = "reddit" ;
+    $w3m = 0 ;
+
+##  youtube domain
+} elsif ($dom eq "youtube.com" or $dom eq "youtu.be")  {
+    $type = "youtube" ;
+    $w3m = 0 ;
+    $dillo = 0 ;
+    $ytdl = 1 ;
+    $mpv = 1 ;
+    $live = 1 ;
+
+##  livestreamer domains
+} elsif ($dom eq "chaturbate.com")  {
+    $type = "livestream" ;
+    $w3m = 0 ;
+    $dillo = 0 ;
+    $live = 1 ;
+}
+
+##  Add entries to the menu.
+
+addentry("\"$menutitle\" Title") ;
+addentry("\"%mm_firefox.png%New &Tab\" OpenFirefoxTab") ;
+addentry("\"%mm_firefox.png%New &Window\" OpenFirefoxWindow") ;
+addentry("\"%mm_firefox.png%&Alt Window\" OpenFirefoxWindowAlt") ;
+addentry("\"%mm_dillo.png%&Dillo\" OpenDillo") if $dillo ;
+addentry("\"%mm_browser.png%W3&m\" OpenW3m") if $w3m ;
+addentry("\"%mm_mpv.png%Play &Video\" MPVPlayVideo") if $mpv ;
+addentry("\"%mm_mpv.png%Play A&udio\" MPVPlayAudioOnly") if $mpv ;
+addentry("\"%mm_mpv.png%&Livestream\" PlayLivestreamer") if $live ;
+addentry("\"%mm_images.png%&View Image\" OpenFeh") if $feh ;
+addentry("\"%mm_images.png%&View Image\" OpenSxiv") if $sxiv ;
+addentry("\"\" Nop") ;
+#addentry("\"\" Nop") if not $ytdl and not $rtv ;
+addentry("\"%mm_play.png%To &Ytdl ($ytnum)\" AddYtdl") if $ytdl ;
+addentry("\"%mm_urxvt.png%To Hosts\" AddHosts") if not $ytdl ;
+#addentry("\"%mm_urxvt.png%To Hosts\" AddHosts") if not $ytdl and not $rtv ;
+
+sub addentry {
+    foreach (@_) {
+        my $msg = "AddToMenu $menuname $_" ;
+        $module->send($msg) ;
+    } 
+}
+
+sub get_xsel_url {
+    my @z = readpipe("timeout 1 xsel -ob") ;
+    return 0 if not defined $z[0] ;
+    my $xsel = $z[0] ;
+    chomp $xsel ;
+    return $xsel ;
+}
+
